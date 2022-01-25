@@ -22,6 +22,8 @@ export async function main(pns) {
 	ns.disableLog('hasRootAccess');
 	ns.disableLog('hackAnalyze');
 	ns.disableLog('getPurchasedServers');
+	ns.disableLog('getHackingLevel');
+	ns.disableLog('getServerRequiredHackingLevel');
 	ns.tail();
 	// ns.disableLog('ALL');
 	weaken_scriptRam = ns.getScriptRam(weaken_script, "home");
@@ -35,7 +37,7 @@ async function updateServerLists() {
 	const beforeHackStatuslength = hackStatus.length;
 	const serversToHack = (await list_servers(ns)).filter(s => ns.hasRootAccess(s)
 		&& ns.getServerMaxMoney(s) > 0
-		&& ns.hackAnalyze(s) > 0);
+		&& ns.getServerRequiredHackingLevel(s) <= ns.getHackingLevel());
 	hackStatus = [];
 	for (const server of serversToHack) {
 		hackStatus.push({ server: server });
@@ -161,8 +163,10 @@ function getHostAndThreads(scriptRam) {
 	const host = serversForExecution.find((host) => {
 		let maxRam = ns.getServerMaxRam(host);
 		// reserve some ram for other scripts
-		if (host === 'home' && maxRam >= 128) {
-			maxRam = maxRam - 64;
+		if (host === 'home' && maxRam >= 64) {
+			maxRam = maxRam - 32;
+		} else if (host === 'home' && maxRam === 32) {
+			maxRam = maxRam - 16;
 		}
 		const threads_available = Math.floor((maxRam - ns.getServerUsedRam(host)) / scriptRam);
 		return threads_available >= 1;
@@ -170,8 +174,10 @@ function getHostAndThreads(scriptRam) {
 	if (!host) return { host: null, threads_available: 0 };
 	let maxRam = ns.getServerMaxRam(host);
 	// reserve some ram for other scripts
-	if (host === 'home' && maxRam >= 128) {
-		maxRam = maxRam - 64;
+	if (host === 'home' && maxRam >= 64) {
+		maxRam = maxRam - 32;
+	} else if (host === 'home' && maxRam === 32) {
+		maxRam = maxRam - 16;
 	}
 	const threads_available = Math.floor((maxRam - ns.getServerUsedRam(host)) / scriptRam);
 	return { host, threads_available };
