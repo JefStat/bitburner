@@ -21,10 +21,6 @@ export async function main(ns) {
 
 			values.push(ns.nFormat(ns.getScriptIncome()[0], "($0.00a)") + '/s');
 
-			const player = ns.getPlayer();
-			headers.push("Int");
-			values.push(player.intelligence.toFixed(0));
-
 			headers.push("Kills");
 			values.push(player.numPeopleKilled.toFixed(0));
 			
