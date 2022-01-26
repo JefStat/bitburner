@@ -1,172 +1,179 @@
 import { runHackScript } from 'utils.js';
 import { list_servers } from 'opened_servers.js';
+import { hackFactor, growthFactor } from 'config.js';
 let ns;
 const weaken_script = "weaken.js";
 const grow_script = "grow.js";
 const hack_script = "hack.js";
-let weaken_scriptRam, grow_scriptRam, hack_scriptRam = 1.7;
+let hack_scriptRam = 1.7;
+let weaken_scriptRam = 1.75;
+let grow_scriptRam = 1.75;
 let hostServers = [];
 let hackServers = [];
 let importantStuff = {};
-const delay = 250; // milliseconds
 /** @param {NS} pns **/
 export async function main(pns) {
 	ns = pns;
+	ns.disableLog('getServerMaxRam');
+	ns.disableLog('sleep');
+	ns.disableLog('scan');
+	ns.disableLog('getHackingLevel');
+	ns.disableLog('getServerMaxMoney');
+	ns.disableLog('getServerRequiredHackingLevel');
+
 	ns.tail();
-	// Security increases scales lineraly with number of threads;
-	// Refresh the amount every loop. Probably static every augment refresh.
-	// tested 0.04 for grow 0.02 for hack
-	const growSecurityInc = ns.growthAnalyzeSecurity(1);
-	const hackSecurityInc = ns.hackAnalyzeSecurity(1);
 	while (true) {
 		await updateHosts();
 		await updateTargets();
 		for (const target of hackServers) {
 			await tryAgain(target)
-			ns.sleep(0);
+			ns.print(`${target.server.hostname} is: ` + JSON.stringify(importantStuff[target.server.hostname], (k, v) => typeof v === 'number' ? ns.tFormat(Math.ceil(v - Date.now())) : v, 2));
+			await ns.sleep(0);
 		}
-		await ns.sleep(50);
+		await ns.sleep(1);
 	}
 }
 
 async function tryAgain(target) {
 	importantStuff[target.server.hostname] = importantStuff[target.server.hostname] || {
-		maxMoneyAt: [],
 		weakLookAhead: [],
-		mostRecentWeakFinish: Date.now(),
-		percentMoney: target.server.moneyAvailable / target.server.moneyMax
+		growLookAhead: [],
+		hackLookAhead: [],
+		mostRecentWeakFinish: Date.now()
 	};
 	const is = importantStuff[target.server.hostname];
-	// trim out any weaklookahead times in the past
-	is.weakLookAhead = is.weakLookAhead.filter(t => t < Date.now());
-	is.weakLookAhead = is.weakLookAhead.filter(t => t < Date.now());
+	// filter out any dates in the past
+	is.weakLookAhead = is.weakLookAhead.filter(t => t > Date.now());
+	is.growLookAhead = is.growLookAhead.filter(t => t > Date.now());
+	is.hackLookAhead = is.hackLookAhead.filter(t => t > Date.now());
+	ns.clearLog();
+
 	const player = ns.getPlayer();
 	// Start with adding a weaken its the slowest part of hack
-	// Weaken strength of security increase from a 2.1 growth factor on a single core host.
+	// Weaken strength of security increase from a growth factor on a single core host.
 	// No harm to over weaken a server, inefficiency for algorithm simplicity.
-	// Weaken should finish delay*2 apart so a grow or hack can occur reliably between them
-	const weakDelta = Date.now() - (is.mostRecentWeakFinish - ns.formulas.hacking.weakenTime(tserver, player));
-	if (weakDelta > delay * 2) {
-		const securityDelta = await computeGrowThreads(tserver, player, 1);
-		const { host, threads } = findHostForWeaken(securityDelta);
-		if (!host) {
-			ns.tprint(`No host available for a weaken of ${target.server.hostname}[${threads}] +${currentSecurity}`);
-			return;
+	// Weaken should finish 10s apart so a grow or hack can occur reliably between them
+	// Max 2 weaken calls in weakLookAhead to be popped off by a grow or hack
+	const weakAt = ns.formulas.hacking.weakenTime(target.server, player) + Date.now();
+	const weakWeakDelta = weakAt - is.mostRecentWeakFinish;
+	const weakMinDelta = 2000;
+	if (weakMinDelta > weakWeakDelta && is.weakLookAhead.length < 4) {
+		ns.print(`Next weak in ${ns.tFormat(weakWeakDelta - weakMinDelta)}`);
+	} else {
+		const currentSecurity = Math.ceil(ns.growthAnalyze(target.server.hostname, growthFactor))
+		// too frustrated to make a multiple host lookup with different cores
+		const owk = ns.weakenAnalyze(1, 1);
+		const threads = Math.max(Math.ceil(currentSecurity / owk), 1);
+		const hosts = findHostsForThreads(currentSecurity);
+		if (!hosts.length) {
+			ns.print(`No host available for a weaken of ${target.server.hostname}[${threads}] +${currentSecurity}`);
+		} else {
+			const started = true;
+			for (const host of hosts) {
+				const pid = await runHackScript(ns, weaken_script, host.host, host.threads, target.server.hostname);
+				if (pid <= 0) {
+					ns.tprint(`FAILED TO START ${weaken_script} ${host.host}[${host.threads}] -> ${target.server.hostname}`);
+					started = false;
+					break;
+				}
+			}
+			if (started) {
+				is.mostRecentWeakFinish = weakAt;
+				is.weakLookAhead.push(is.mostRecentWeakFinish);
+			}
 		}
-		const pid = await runHackScript(weaken_script, host, threads, target.server.hostname);
-		if (pid <= 0) {
-			ns.tprint(`FAILED TO START ${weaken_script} ${host}[${threads}] -> ${target.server.hostname}`);
-			return;
-		}
-		is.weakLookAhead.push(Date.now() + ns.formulas.hacking.weakenTime(tserver, player));
-		return;
 	}
-	const currentSecurity = tserver.hackDifficulty - tserver.minDifficulty;
+	const currentSecurity = target.server.hackDifficulty - target.server.minDifficulty;
+	// wait till security is at minimum before starting the hack grow cycle
 	if (currentSecurity > 0) {
-		ns.tprint(`Waiting to weaken ${target.server.hostname}+${currentSecurity}`);
-		// wait till security is at minimum before starting the hack grow cycle
+		ns.print(`Waiting to weaken ${target.server.hostname}+${currentSecurity}`);
 		return;
 	}
 	// security is at min to start hack or grow
-	if (is.weakLookAhead.length > 0
-		// check if the next grow is going to push the server to max money
-		&& is.percentMoney < 1) {
-		const weakTime = is.weakLookAhead.shift();
-		const growWindow = weakTime - Date.now() - target.growTime;
-		if (growWindow > 250) {
-			const { host, threads } = findHostForGrow(tserver);
-			if (!host) {
-				ns.tprint(`No host available for a grow of ${target.server.hostname}[${threads}] +${currentSecurity}`);
-				return;
-			}
-			const pid = await runHackScript(grow_script, host.server.hostname, threads, target.server.hostname);
-			if (pid <= 0) {
-				ns.tprint(`FAILED TO START ${grow_script} ${host.server.hostname}[${threads}] -> ${target.server.hostname}`);
-				return;
-			}
-			is.percentMoney = Math.min(1, is.percentMoney * ns.formulas.hacking.growPercent(target.server, threads, player, host.cpuCores));
-			is.growLookAhead.push(Date.now() + target.growTime);
+	if (is.weakLookAhead.length > 0 && is.growLookAhead.length == 0) {
+		const growAt = Date.now() + target.growTime;
+		const growWeakDelta = is.weakLookAhead[0] - growAt;
+
+		if (500 < growWeakDelta && growWeakDelta < 2000) {
+			ns.print(`Next grow window in ${ns.tFormat(growWeakDelta - 500)} growAt ${ns.tFormat(growAt)} weakAt ${ns.tFormat(is.weakLookAhead[0])}`);
 		} else {
-			is.weakLookAhead.unshift(weakTime);
-			ns.tprint(`Grow window missed ${growWindow} ${weakTime} ${Date.now()} ${target.growTime}`);
+			const threads = Math.ceil(ns.growthAnalyze(target.server.hostname, growthFactor));
+			const hosts = findHostsForThreads(threads);
+			if (!hosts.length) {
+				ns.print(`No host available for a grow of ${target.server.hostname}[${threads}] +${ns.growthAnalyzeSecurity(threads)}`);
+			} else {
+				const started = true;
+				for (const host of hosts) {
+					const pid = await runHackScript(ns, grow_script, host.host, host.threads, target.server.hostname);
+					if (pid <= 0) {
+						ns.tprint(`FAILED TO START ${grow_script} ${host.host}[${host.threads}] -> ${target.server.hostname}`);
+						started = false;
+						break;
+					}
+				}
+				if (started) {
+					is.weakLookAhead.shift();
+					is.growLookAhead.push(Date.now() + target.growTime);
+				}
+			}
 		}
 	}
-	if (is.weakLookAhead.length > 0 && is.percentMoney >= 1) {
-		const weakTime = is.weakLookAhead.shift();
-		const hackWindow = weakTime - Date.now() - target.hackTime;
-		if (hackWindow > 250) {
-			const growLookAhead = is.growLookAhead.shift();
-			const { host, threads } = findHostForHack(tserver);
-			if (!host) {
-				ns.tprint(`No host available for a hack of ${target.server.hostname}[${threads}] +${currentSecurity}`);
-				return;
-			}
-			const pid = await runHackScript(hack_script, host, threads, target.server.hostname);
-			if (pid <= 0) {
-				ns.tprint(`FAILED TO START ${hack_script} ${host}[${threads}] -> ${target.server.hostname}`);
-				return;
-			}
-			is.percentMoney = .5;
+	if (is.weakLookAhead.length > 0 && is.growLookAhead.length > 0) {
+		const hackAt = Date.now() + target.hackTime;
+		const hackWeakDelta = is.weakLookAhead[0] - hackAt;
+		if (500 < hackWeakDelta && hackWeakDelta < 2000) {
+			ns.print(`Next hack window in ${ns.tFormat(hackWeakDelta - 500)} growAt ${ns.tFormat(hackAt)} weakAt ${ns.tFormat(is.weakLookAhead[0])}`);
 		} else {
-			const gla = is.weakLookAhead.unshift(weakTime);
-			ns.tprint(`Hack window missed ${growWindow} ${weakTime} ${Date.now()} ${target.hackTime}`);
+			const threads = Math.max(Math.floor(hackFactor / ns.hackAnalyze(target.server.hostname)), 1);
+			const hosts = findHostsForThreads(threads);
+			if (!hosts.length) {
+				ns.print(`No host available for a hack of ${target.server.hostname}[${threads}] +${ns.hackAnalyzeSecurity(threads)}`);
+				return;
+			}
+			for (const host of hosts) {
+				const pid = await runHackScript(ns, hack_script, host.host, host.threads, target.server.hostname);
+				if (pid <= 0) {
+					ns.tprint(`FAILED TO START ${hack_script} ${host}[${threads}] -> ${target.server.hostname}`);
+					return;
+				}
+			}
+			is.hackLookAhead.push(Date.now() + target.hackTime);
+			is.growLookAhead.shift();
+			is.weakLookAhead.shift();
 		}
 	}
 }
 
-async function computeGrowThreads(target, player, cpuCores) {
-	let percent = 0;
-	let threads = 1;
-	// always grow by double + 10% and hack by 50%. 
-	// this is done to avoid extra logic to prep servers to max money. 
-	// also keeps the number of thread needed to a manageble number
-	while (percent < 2.1) {
-		// grow percents are not linear per thread this will be the most accurate value
-		percent = ns.formulas.hacking.growPercent(target, threads++, player, cpuCores);
-		await ns.sleep(0);
+function findHostsForThreads(threads) {
+	let threadAcc = threads;
+	const hosts = [];
+	for (const host of hostServers) {
+		if (threadAcc <= 0) break;
+		const useThreads = Math.min(threadAcc, host.threadsAvailable);
+		if (useThreads > 0) {
+			hosts.push({ host: host.server.hostname, threads: useThreads });
+			host.threadsAvailable -= useThreads;
+		}
+		threadAcc -= useThreads;
 	}
-	return threads;
-}
-
-function findHostForHack() {
-	let threads = 1;
-	const threadsNeeded = Math.max(parseInt((.5 / ns.hackAnalyze(target)).toFixed(0)) - threads, 1);
-	const host = hostServers.find(s => s.threadsAvailable >= threadsNeeded);
-	return { host, threads };
-}
-
-async function findHostForGrow(target) {
-	let threads = 1;
-	const player = ns.getPlayer();
-	const host = hostServers.find(s => {
-		let percent = 0;
-		threads = computeGrowThreads(target, player, s.cpuCores);
-		return s.threadsAvailable >= threads;
-	});
-	return { host, threads };
-}
-
-function findHostForWeaken(currentSecurity) {
-	let threads = 1;
-	const host = hostServers.find(s => {
-		const owk = ns.weakenAnalyze(1, s.cpuCores);
-		threads = Math.max(Math.ceil(currentSecurity / owk), 1);
-		return s.threadsAvailable >= threads;
-	});
-	return { host, threads };
+	// ns.print(`threads${threads} threadAcc ${threadAcc}`);
+	if (threadAcc > 0) return [];
+	return hosts;
 }
 
 async function updateHosts() {
 	const openedServers = (await list_servers(ns)).filter(s => ns.hasRootAccess(s) && ns.getServerMaxRam(s) > 1)
 	const serversForExecution = ['home'].concat(ns.getPurchasedServers()).concat(openedServers);
 	hostServers = [];
-	for (const server of serversForExecution) {
-		const s = ns.getServer(server);
+	for (const host of serversForExecution) {
+		const s = ns.getServer(host);
 		// reserve some ram for other scripts
-		if (host === 'home' && s.maxRam >= 128) {
-			maxRam = maxRam - 64;
+		if (host === 'home' && s.maxRam >= 64) {
+			s.maxRam = s.maxRam - 32;
+		} else if (host === 'home' && s.maxRam === 32) {
+			s.maxRam = s.maxRam - 16;
 		}
-		const threadsAvailable = Math.floor((s.maxRam - s.ramUsed) / hack_scriptRam);
+		const threadsAvailable = Math.max(Math.floor((s.maxRam - s.ramUsed) / weaken_scriptRam), 0);
 		hostServers.push({
 			server: s,
 			cpuCores: s.cpuCores,
@@ -179,17 +186,18 @@ async function updateHosts() {
 async function updateTargets() {
 	const player = ns.getPlayer();
 	const beforeHackStatuslength = hackServers.length;
-	const serversToHack = (await list_servers(ns)).filter(s => ns.hasRootAccess(s)
-		&& ns.getServerMaxMoney(s) > 0
-		&& ns.getServerRequiredHackingLevel(s) <= ns.getHackingLevel());
+	// const serversToHack = (await list_servers(ns)).filter(s => ns.hasRootAccess(s)
+	// 	&& ns.getServerMaxMoney(s) > 0
+	// 	&& ns.getServerRequiredHackingLevel(s) <= ns.getHackingLevel());
+	const serversToHack = ['foodnstuff'];
 	hackServers = [];
-	for (const server of serversToHack) {
-		const s = ns.getServer(server);
+	for (const s of serversToHack) {
+		const server = ns.getServer(s);
 		server.hackDifficulty = server.minDifficulty;
 		// check that hacks will succeed. Could be redundant check
 		const hackChance = ns.formulas.hacking.hackChance(server, player);
-		if (hackChance < .95) {
-			ns.tprint(`Hack chance to low ${server} ${(hackChance * 100).toFixed(2)}%`)
+		if (hackChance < 1) {
+			ns.print(`Hack chance to low ${s} ${(hackChance * 100).toFixed(2)}%`)
 			continue;
 		}
 
@@ -198,11 +206,10 @@ async function updateTargets() {
 			// times are consistent on starting hack and grow when security is minimum
 			// weaken is never started at security minmum
 			// weakTime: ns.formulas.hacking.weakenTime(s, player), 
-			growTime: ns.formulas.hacking.growTime(s, player),
-			hackTime: ns.formulas.hacking.hackTime(s, player)
-
+			growTime: ns.formulas.hacking.growTime(server, player),
+			hackTime: ns.formulas.hacking.hackTime(server, player)
 		});
-		await ns.sleep(1);
+		await ns.sleep(0);
 	}
-	if (beforeHackStatuslength < hackStatus.length) ns.tprint(`Servers to hack ${serversToHack.length}`);
+	if (beforeHackStatuslength < hackServers.length) ns.print(`Servers to hack ${hackServers.length}`);
 }
