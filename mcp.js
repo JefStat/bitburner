@@ -40,8 +40,11 @@ async function updateServerLists() {
 		&& ns.getServerRequiredHackingLevel(s) <= ns.getHackingLevel());
 	hackStatus = [];
 	for (const server of serversToHack) {
+		if (ns.getServerGrowth(server) < 40) {
+			// ns.print(`Growth is to low ${server} ${ns.getServerGrowth(server)}%`)
+			continue;
+		}
 		hackStatus.push({ server: server });
-		await ns.sleep(1);
 	}
 	if (beforeHackStatuslength < hackStatus.length) ns.tprint(`Servers to hack ${serversToHack.length}`);
 }
