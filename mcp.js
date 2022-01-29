@@ -24,6 +24,7 @@ export async function main(pns) {
 	ns.disableLog('getPurchasedServers');
 	ns.disableLog('getHackingLevel');
 	ns.disableLog('getServerRequiredHackingLevel');
+	ns.disableLog('getServerGrowth');
 	ns.tail();
 	// ns.disableLog('ALL');
 	weaken_scriptRam = ns.getScriptRam(weaken_script, "home");
@@ -39,14 +40,25 @@ async function updateServerLists() {
 		&& ns.getServerMaxMoney(s) > 0
 		&& ns.getServerRequiredHackingLevel(s) <= ns.getHackingLevel());
 	hackStatus = [];
+	const player = ns.getPlayer();
 	for (const server of serversToHack) {
-		if (ns.getServerGrowth(server) < 40) {
-			// ns.print(`Growth is to low ${server} ${ns.getServerGrowth(server)}%`)
+		const s = ns.getServer(server);
+		s.hackDifficulty = s.minDifficulty;
+		// check that hacks will succeed. Could be redundant check
+		const hackChance = ns.formulas.hacking.hackChance(s, player);
+		if (hackChance < .9) {
+			//ns.print(`Hack chance to low ${s} ${(hackChance * 100).toFixed(2)}%`)
+			continue;
+		}
+		if (s.serverGrowth < 40) {
+			//ns.print(`Growth is to low ${s} ${s.serverGrowth}%`)
 			continue;
 		}
 		hackStatus.push({ server: server });
 	}
-	if (beforeHackStatuslength < hackStatus.length) ns.tprint(`Servers to hack ${serversToHack.length}`);
+	// after aug install just start hacking on n00dles for the fist 5 mins
+	if (hackStatus.length === 0) hackStatus.push({ server: 'n00dles' });
+	if (beforeHackStatuslength < hackStatus.length) ns.tprint(`Servers to hack ${hackStatus.length} ${hackStatus.map(o => o.server).join(',')}`);
 }
 
 async function run() {
