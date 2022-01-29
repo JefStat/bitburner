@@ -17,9 +17,9 @@ export async function main(ns) {
     ns.disableLog('ALL');
     const padding = '       ';
     const config = {
-        offset: 2,// axis offset from the left (min 2)
+        offset: 2,    // axis offset from the left (min 2)
         padding, // padding string for label formatting (can be overridden)
-        height: 23,   // any height you want
+        height: 5,   // any height you want
         // the label format function applies default padding
         format: function (x, i) { return (padding + ns.nFormat(x, '0.00a')).slice(-padding.length) }
     };
@@ -36,7 +36,10 @@ export async function main(ns) {
             series[target].push(Math.floor(parseFloat(v)));
             series[target].shift();
         }
-        ns.print(`${asciichart.plot(Object.values(series), config)}`);
+        for (const [target, datum] of Object.entries(series)) {
+            ns.print(target);
+            ns.print(`${asciichart.plot(datum, config)}`);
+        }
         await ns.sleep(flags.refreshrate);
     }
 }
