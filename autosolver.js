@@ -10,14 +10,13 @@ export function main(ns) {
             return `${server} - ${contract} - ${type} - ${didSolve || "FAILED!"}`;
         });
         return onServer;
-    });
+    }).filter(o => o.length);
     ns.tprint(`Found ${contracts.length} contracts`);
-    contracts.forEach((contract) => void ns.tprint(contract));
+    contracts.forEach((contract) => ns.tprint(contract));
 }
 
 function solve(type, data, server, contract, ns) {
     let solution = "";
-    ns.tprint(type);
     switch (type) {
         case "Algorithmic Stock Trader I":
             solution = maxProfit([1, data]);
@@ -52,8 +51,13 @@ function solve(type, data, server, contract, ns) {
         case "Merge Overlapping Intervals":
             solution = mergeOverlap(data);
             break;
+        case "Subarray with Maximum Sum":
+        default:
+            solution = "";
+            ns.tprint(type + ' No solution implemented');
+            break;
     }
-    return (solution != "") ? ns.codingcontract.attempt(solution, contract, server, [true]) : "";
+    return (solution != "") ? ns.codingcontract.attempt(solution, contract, server, { returnReward: true }) : "";
 }
 
 //ALGORITHMIC STOCK TRADER
@@ -104,7 +108,7 @@ function solveTriangleSum(arrayData, ns) {
     let triangle = arrayData;
     let nextArray;
     let previousArray = triangle[0];
-   
+
     for (let i = 1; i < triangle.length; i++) {
         nextArray = [];
         for (let j = 0; j < triangle[i].length; j++) {
