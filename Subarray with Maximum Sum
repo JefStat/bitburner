@@ -1,0 +1,6 @@
+Subarray with Maximum Sum
+You are attempting to solve a Coding Contract. You have 10 tries remaining, after which the contract will self-destruct.
+
+
+Given the following integer array, find the contiguous subarray (containing at least one number) which has the largest sum and return that sum. 'Sum' refers to the sum of all the numbers in the subarray.
+-6,4,1,8,10,-6,0,9,-6,-2,-8,-7,3,-7,7,4,2,5,-3,2,0,-3,-5,-9,5,5,7,-1,0,4,-4,2,-4,8,-7,-2,3,-2,1,-1
