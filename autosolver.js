@@ -52,6 +52,8 @@ function solve(type, data, server, contract, ns) {
             solution = mergeOverlap(data);
             break;
         case "Subarray with Maximum Sum":
+            solution = subArrayMaxSum(data);
+            break;
         default:
             solution = "";
             ns.tprint(type + ' No solution implemented');
@@ -224,7 +226,7 @@ function factor(num) {
             continue;
         }
         num = num / div;
-        div = 2;
+        div = 1;
     }
     return num;
 }
@@ -283,4 +285,37 @@ function mergeOverlap(intervals) {
         }
     }
     return intervals;
+}
+
+// Subarray with Maximum Sum
+
+function subArrays(arr, start, end, acc)
+{
+    // Stop if we have reached the end of the array    
+    if (end === arr.length)
+        return acc;
+    // Increment the end point and start from 0
+    else if (start > end)
+        subArrays(arr, 0, end + 1, acc);
+    // create the subarray
+    else
+    {
+        let subArr = [];
+        for(var i = start; i < end; i++)
+        {
+            subArr.push(arr[i]);
+        }
+        subArr.push(arr[end]);
+        acc.push(subArr);
+         
+        subArrays(arr, start + 1, end, acc);
+    }
+    return acc;
+}
+
+function subArrayMaxSum(arr) {
+    arr = arr || [-6, 4, 1, 8, 10, -6];
+    const arrays = subArrays(arr, 0,0, []);
+    const sums = arrays.map(o=> o.reduce((a,b)=> a+b,0));
+    return Math.max(...sums);
 }

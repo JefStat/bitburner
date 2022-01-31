@@ -3,4 +3,38 @@ You are attempting to solve a Coding Contract. You have 10 tries remaining, afte
 
 
 Given the following integer array, find the contiguous subarray (containing at least one number) which has the largest sum and return that sum. 'Sum' refers to the sum of all the numbers in the subarray.
--6,4,1,8,10,-6,0,9,-6,-2,-8,-7,3,-7,7,4,2,5,-3,2,0,-3,-5,-9,5,5,7,-1,0,4,-4,2,-4,8,-7,-2,3,-2,1,-1
+[-6,4,1,8,10,-6,0,9,-6,-2,-8,-7,3,-7,7,4,2,5,-3,2,0,-3,-5,-9,5,5,7,-1,0,4,-4,2,-4,8,-7,-2,3,-2,1,-1]
+
+
+function subArrays(arr, start, end, acc)
+{
+    // Stop if we have reached the end of the array    
+    if (end === arr.length)
+        return acc;
+    // Increment the end point and start from 0
+    else if (start > end)
+        subArrays(arr, 0, end + 1, acc);
+    // create the subarray
+    else
+    {
+    	let subArr = [];
+        for(var i = start; i < end; i++)
+        {
+        	subArr.push(arr[i]);
+        }
+        subArr.push(arr[end]);
+        acc.push(subArr);
+         
+        subArrays(arr, start + 1, end, acc);
+    }
+    return acc;
+}
+
+function subArrayMaxSum(arr) {
+	arr = arr || [-6, 4, 1, 8, 10, -6];
+	const arrays = subArrays(arr, 0,0, []);
+	console.log(arrays);
+	const sums = arrays.map(o=> o.reduce((a,b)=> a+b,0));
+	console.log(sums);
+	return Math.max(...sums);
+}
