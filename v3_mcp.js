@@ -23,12 +23,11 @@ async function main(pns) {
 }
 
 
-
 // Weaken is always the slowest operation
 // Hack is always the fastest operation
 // Grow number of threads will vary widly based on server growth and effect size
 // Hack will progressively take fewer threads but start out very large
-getStateForTargetAtTime(target, time) {
+function getStateForTargetAtTime(target, time) {
 	const hist = targetHistories[target];
 	const server = ns.getServer(target);
 	const states = hist.states.filter(h =>  0 < (h.time - time) && (h.time - time) < 1000 );
@@ -56,6 +55,58 @@ getStateForTargetAtTime(target, time) {
 			addWeakenHackState();
 		}
 	}
+}
+
+// start a weaken for a hack operation
+// precompute threads to reserve enough capacity for the subsequent hack
+function addWeakenGrowState(server, prevState) {
+	const percentMoney = (prevState.money || 1) / prevState.maxMoney;
+	const growthFactor = 1 / percentMoney;
+	let growThreads = Math.max(Math.ceil(ns.growthAnalyze(server.hostname, growthFactor, 1)), 1);
+	let security = ns.growthAnalyzeSecurity(growThreads);
+	let securityThreads = Math.max(Math.ceil(security / ns.weakenAnalyze(1, 1)), 1);
+	const threadsAvail = getThreadAvailable(grow_scriptRam);
+	while(threadsAvail < (growThreads + securityThreads)){
+		ns.print(`Reducing grow growThreads ${growThreads} securityThreads ${securityThreads}`);
+		growThreads = Math.floor(growThreads / 2);
+		security = ns.growthAnalyzeSecurity(growThreads);
+		securityThreads = Math.max(Math.ceil(security / ns.weakenAnalyze(1, 1)), 1);
+	}
+	const time = ns.formulas.hacking.weakenTime(server, player);
+	const hosts = findHostsForThreads(securityThreads);
+	let weakThreads = 0;
+	for (const host of hosts) {
+		const pid = await runHackScript(ns, weak_script, host.host, host.threads, server.hostname);
+		if (pid <= 0) {
+			const reqRam = weak_scriptRam * host.threads;
+			const freeRam = ns.getServerMaxRam(host) - getServerUsedRam(host);
+			ns.tprint(`FAILED TO START ${weak_script} ${host.host}[${host.threads}] -> ${server.hostname} free ram ${freeRam} needed ram ${reqRam}`);
+		} else {
+			weakThreads += host.threads;
+		}
+	}
+	// finally supposing something broke and weakened less than intended recompute growThreads one more time
+	const securityReduction = ns.weakenAnalyze(weakThreads, 1);
+	while (ns.growthAnalyzeSecurity(growThreads) > securityReduction)
+	{
+		growThreads--;
+		if (growThreads <= 0) {
+			ns.print(`GROW THREADS ARE NEGATIVE WE DONE F'D UP`);
+			break;
+		}
+	}
+	
+	const newState = {
+		minDifficulty: prevState.minDifficulty,
+		maxMoney: prevState.maxMoney,
+		money: prevState.money
+	};
+	newState.hackDifficulty = Math.max(prevState.hackDifficulty  - securityReduction, state.minDifficulty);
+	newState.time = time + Date.now();
+	newState.op = 'weaken';
+	const growTime = ns.formulas.hacking.growTime(server, player);
+	reserveThreads(growThreads, newState.time - (growTime + 500), true);
+	return newState;
 }
 
 // start a weaken for a grow operation
@@ -172,6 +223,22 @@ function reserveThreads(threads, until, prioritzeHome, script, target) {
 // prioritize home for weaken and grow
 // respect the reserved thread amount
 function findHostsForThreads(scriptRam, threads, isForWeakenOrGrow){}
+function findHostsForThreads(threads, returnPartial) {
+	let threadAcc = threads;
+	const hosts = [];
+	for (const host of hostServers) {
+		if (threadAcc <= 0) break;
+		const useThreads = Math.min(threadAcc, host.threadsAvailable);
+		if (useThreads > 0) {
+			hosts.push({ host: host.server.hostname, threads: useThreads });
+			host.threadsAvailable -= useThreads;
+		}
+		threadAcc -= useThreads;
+	}
+	// ns.print(`threads${threads} threadAcc ${threadAcc}`);
+	if (threadAcc > 0 && !returnPartial) return [];
+	return hosts;
+}
 
 
 function validate(target, time, diff) {
