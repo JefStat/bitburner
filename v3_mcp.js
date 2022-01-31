@@ -5,6 +5,7 @@ let ns;
 let threadsReseved = [];
 const targetHistories = {};
 
+/** @param {NS} pns **/
 async function main(pns) {
   ns = pns;
   threadsReseved = [];
