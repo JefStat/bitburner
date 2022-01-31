@@ -289,8 +289,7 @@ function mergeOverlap(intervals) {
 
 // Subarray with Maximum Sum
 
-function subArrays(arr, start, end, acc)
-{
+function subArrays(arr, start, end, acc) {
     // Stop if we have reached the end of the array    
     if (end === arr.length)
         return acc;
@@ -298,16 +297,14 @@ function subArrays(arr, start, end, acc)
     else if (start > end)
         subArrays(arr, 0, end + 1, acc);
     // create the subarray
-    else
-    {
+    else {
         let subArr = [];
-        for(var i = start; i < end; i++)
-        {
+        for (var i = start; i < end; i++) {
             subArr.push(arr[i]);
         }
         subArr.push(arr[end]);
         acc.push(subArr);
-         
+
         subArrays(arr, start + 1, end, acc);
     }
     return acc;
@@ -315,7 +312,7 @@ function subArrays(arr, start, end, acc)
 
 function subArrayMaxSum(arr) {
     arr = arr || [-6, 4, 1, 8, 10, -6];
-    const arrays = subArrays(arr, 0,0, []);
-    const sums = arrays.map(o=> o.reduce((a,b)=> a+b,0));
+    const arrays = subArrays(arr, 0, 0, []);
+    const sums = arrays.map(o => o.reduce((a, b) => a + b, 0));
     return Math.max(...sums);
 }
