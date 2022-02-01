@@ -11,3 +11,30 @@ Each element in the array represents your MAXIMUM jump length at that position. 
 Assuming you are initially positioned at the start of the array, determine whether you are able to reach the last index.
 
 Your answer should be submitted as 1 or 0, representing true and false respectively
+
+function arrayJump(arr)
+{
+	let n = arr.length;
+    let jumps = Array.from({length: n}, (_, i) => 0);
+    let min;
+    jumps[n - 1] = 0;
+    for (i = n - 2; i >= 0; i--) {
+        if (arr[i] == 0)
+            jumps[i] = Number.MAX_VALUE;
+        else if (arr[i] >= n - i - 1)
+            jumps[i] = 1;
+        else {
+            min = Number.MAX_VALUE;
+            for (j = i + 1; j < n && j <= arr[i] + i; j++) {
+                if (min > jumps[j])
+                    min = jumps[j];
+            }
+            if (min != Number.MAX_VALUE)
+                jumps[i] = min + 1;
+            else
+                jumps[i] = min;
+        }
+    }
+    return jumps[0];
+}
+arrayJump(arr) < Number.MAX_VALUE ?  1: 0;

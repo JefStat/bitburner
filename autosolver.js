@@ -54,6 +54,9 @@ function solve(type, data, server, contract, ns) {
         case "Subarray with Maximum Sum":
             solution = subArrayMaxSum(data);
             break;
+        case "Array Jumping Game":
+            solution = arrayJump(data);
+            break;
         default:
             solution = "";
             ns.tprint(type + ' No solution implemented');
@@ -315,4 +318,31 @@ function subArrayMaxSum(arr) {
     const arrays = subArrays(arr, 0, 0, []);
     const sums = arrays.map(o => o.reduce((a, b) => a + b, 0));
     return Math.max(...sums);
+}
+
+
+function arrayJump(arr)
+{
+    let n = arr.length;
+    let jumps = Array.from({length: n}, (_, i) => 0);
+    let min;
+    jumps[n - 1] = 0;
+    for (i = n - 2; i >= 0; i--) {
+        if (arr[i] == 0)
+            jumps[i] = Number.MAX_VALUE;
+        else if (arr[i] >= n - i - 1)
+            jumps[i] = 1;
+        else {
+            min = Number.MAX_VALUE;
+            for (j = i + 1; j < n && j <= arr[i] + i; j++) {
+                if (min > jumps[j])
+                    min = jumps[j];
+            }
+            if (min != Number.MAX_VALUE)
+                jumps[i] = min + 1;
+            else
+                jumps[i] = min;
+        }
+    }
+    return jumps[0] < Number.MAX_VALUE ?  1: 0;
 }
