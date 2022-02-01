@@ -321,10 +321,9 @@ function subArrayMaxSum(arr) {
 }
 
 
-function arrayJump(arr)
-{
+function arrayJump(arr) {
     let n = arr.length;
-    let jumps = Array.from({length: n}, (_, i) => 0);
+    let jumps = Array.from({ length: n }, (_, i) => 0);
     let min;
     jumps[n - 1] = 0;
     for (i = n - 2; i >= 0; i--) {
@@ -344,5 +343,5 @@ function arrayJump(arr)
                 jumps[i] = min;
         }
     }
-    return jumps[0] < Number.MAX_VALUE ?  1: 0;
+    return jumps[0] < Number.MAX_VALUE ? 1 : 0;
 }
