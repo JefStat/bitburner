@@ -326,14 +326,14 @@ function arrayJump(arr) {
     let jumps = Array.from({ length: n }, (_, i) => 0);
     let min;
     jumps[n - 1] = 0;
-    for (i = n - 2; i >= 0; i--) {
+    for (let i = n - 2; i >= 0; i--) {
         if (arr[i] == 0)
             jumps[i] = Number.MAX_VALUE;
         else if (arr[i] >= n - i - 1)
             jumps[i] = 1;
         else {
             min = Number.MAX_VALUE;
-            for (j = i + 1; j < n && j <= arr[i] + i; j++) {
+            for (let j = i + 1; j < n && j <= arr[i] + i; j++) {
                 if (min > jumps[j])
                     min = jumps[j];
             }
