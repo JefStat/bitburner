@@ -57,6 +57,9 @@ function solve(type, data, server, contract, ns) {
         case "Array Jumping Game":
             solution = arrayJump(data);
             break;
+        case "Someting expressions":
+            solution = allExpressions(data);
+            break;
         default:
             solution = "";
             ns.tprint(type + ' No solution implemented');
@@ -345,4 +348,22 @@ function arrayJump(arr)
         }
     }
     return jumps[0] < Number.MAX_VALUE ?  1: 0;
+}
+
+
+// works for simple answers locks up a browser for large ones
+function allExpressions( data ) {
+    const digits = data[0].split( '' )
+    const operators = ['+', '-', '*', '']
+    let expressions = [digits[0], '-' + digits[0]]
+        .flatMap( d => operators.map( op => d + op ))
+    for( let i = 1; i < digits.length - 1; i++ ) {
+        expressions = expressions
+            .flatMap( e => operators.map( op => e + digits[i] + op) )
+    }
+    return expressions.map( e => e + digits[digits.length - 1] )
+        .filter( e => {
+            try{ return eval(e) === data[1] }
+            catch(e) { return false }
+        } )
 }

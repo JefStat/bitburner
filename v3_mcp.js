@@ -30,6 +30,10 @@ async function main(pns) {
 // Hack will progressively take fewer threads but start out very large
 function getStateForTargetAtTime(target, time) {
 	const hist = targetHistories[target];
+	if (!hist) {
+		targetHistories[target] = {};
+		hist = targetHistories[target];
+	}
 	const server = ns.getServer(target);
 	const states = hist.states.filter(h =>  0 < (h.time - time) && (h.time - time) < 1000 );
 	if (states.length > 1) {
@@ -245,6 +249,7 @@ function findHostsForThreads(threads, returnPartial) {
 function validate(target, time, diff) {
 	ns.print(`time elaspsed: ${ns.tformat(diff)}`);
 	const hist = targetHistories[target];
+	if (!hist) return;
 	const server = ns.getServer(target);
 	const states = hist.states.filter(h => h.time < Date.now());
 	if (states.length > 1) {
