@@ -16,7 +16,7 @@ export function main(ns) {
 }
 
 function solve(type, data, server, contract, ns) {
-    let solution = "";
+    let solution;
     switch (type) {
         case "Algorithmic Stock Trader I":
             solution = maxProfit([1, data]);
@@ -57,7 +57,7 @@ function solve(type, data, server, contract, ns) {
         case "Array Jumping Game":
             solution = arrayJump(data);
             break;
-        case "Someting expressions":
+        case "Find All Valid Math Expressions":
             solution = allExpressions(data);
             break;
         default:
