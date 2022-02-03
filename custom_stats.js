@@ -1,4 +1,4 @@
-import { list_servers } from 'opened_servers.js';
+import { ramUsage } from 'utils.js';
 
 /** @param {NS} ns **/
 export async function main(ns) {
@@ -14,7 +14,7 @@ export async function main(ns) {
 	ns.disableLog('disableLog');
 	ns.disableLog('getServerMaxRam')
 	ns.disableLog('getServerUsedRam');
-	
+
 	const doc = eval('document');
 	const hook0 = doc.getElementById('overview-extra-hook-0');
 	const hook1 = doc.getElementById('overview-extra-hook-1');
@@ -38,11 +38,8 @@ export async function main(ns) {
 			headers.push("Money");
 			values.push(ns.nFormat(monies.reduce((a, b) => a + b, 0) / monies.length, "($0.00a)") + '/s');
 
-			const serversWithRam = ns.getPurchasedServers().concat(
-				list_servers(ns).filter(s => ns.hasRootAccess(s) && ns.getServerMaxRam(s) > 1));
-			const ramusage = serversWithRam.map(o => ns.getServerUsedRam(o) / ns.getServerMaxRam(o)).reduce((a, b) => a + b, 0) / serversWithRam.length;
 			headers.push("Ram Use");
-			values.push((ramusage * 100).toFixed(1) + '%');
+			values.push((ramUsage(ns) * 100).toFixed(1) + '%');
 
 			headers.push("Karma");
 			values.push(ns.heart.break().toFixed(0));

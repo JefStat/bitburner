@@ -46,7 +46,7 @@ async function updateServerLists() {
 		s.hackDifficulty = s.minDifficulty;
 		// check that hacks will succeed. Could be redundant check
 		const hackChance = ns.formulas.hacking.hackChance(s, player);
-		if (hackChance < .9) {
+		if (hackChance < .99) {
 			//ns.print(`Hack chance to low ${s} ${(hackChance * 100).toFixed(2)}%`)
 			continue;
 		}

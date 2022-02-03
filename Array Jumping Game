@@ -5,6 +5,8 @@ You are attempting to solve a Coding Contract. You have 1 tries remaining, after
 You are given the following array of integers:
 
 6,10,2,7,0,0,0,2,9,0
+Failed this one
+0,9,0,6,0,6,3,0,10,5,2,3,10
 
 Each element in the array represents your MAXIMUM jump length at that position. This means that if you are at position i and your maximum jump length is n, you can jump to any position from i to i+n.
 

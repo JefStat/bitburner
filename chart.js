@@ -1,9 +1,11 @@
 import * as asciichart from 'asciichart.js';
+//store here to be a bit more persisten to script restarts
+const series = { 'n00dles': new Array(50).fill(0) };
 /** @param {NS} ns **/
 export async function main(ns) {
     const flags = ns.flags([
         ['port', 1],
-        ['refreshrate', 200],
+        ['refreshrate', 10000],
         ['help', false],
     ])
     if (flags.help) {
@@ -23,20 +25,27 @@ export async function main(ns) {
         // the label format function applies default padding
         format: function (x, i) { return (padding + ns.nFormat(x, '0.00a')).slice(-padding.length) }
     };
-    const series = { 'n00dles': new Array(50).fill(0) };
+
     const port = flags.port;
     ns.print(JSON.stringify(Object.values(series), null, 2));
     while (true) {
         ns.clearLog();
+        const dollars = {};
         let d = ns.peek(port);
-        if (d !== 'NULL PORT DATA') {
+        while (d !== 'NULL PORT DATA') {
             d = ns.readPort(port)
+            if (d === 'NULL PORT DATA') continue;
             const [target, v] = d.split(':');
+            const dollar = Math.floor(parseFloat(v));
+            if (!dollars[target]) dollars[target] = 0;
+            dollars[target] += dollar;
+            // ns.toast(`Hacked ${target} ${ns.nFormat(dollar, "$0.000a")}`, 'info', 3000);
             series[target] = series[target] || new Array(50).fill(0);
-            series[target].push(Math.floor(parseFloat(v)));
-            series[target].shift();
         }
+        ns.print(`Interval ${ns.tFormat(flags.refreshrate)}`)
         for (const [target, datum] of Object.entries(series)) {
+            series[target].push(dollars[target] || 0);
+            series[target].shift();
             ns.print(target);
             ns.print(`${asciichart.plot(datum, config)}`);
         }
