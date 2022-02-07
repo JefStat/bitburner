@@ -31,7 +31,7 @@ async function main(pns) {
 function getStateForTargetAtTime(target, time) {
 	const hist = targetHistories[target];
 	if (!hist) {
-		targetHistories[target] = {};
+		targetHistories[target] = { states: []};
 		hist = targetHistories[target];
 	}
 	const server = ns.getServer(target);
@@ -43,7 +43,7 @@ function getStateForTargetAtTime(target, time) {
 		hackDifficulty: server.hackDifficulty,
 		money: server.money,
 		op: 'prep',
-
+		time: -1,
 	};
 	if (state.op === 'prep') {
 		if (state.hackDifficulty !== server.minDifficulty) {
@@ -64,11 +64,11 @@ function getStateForTargetAtTime(target, time) {
 
 // start a weaken for a hack operation
 // precompute threads to reserve enough capacity for the subsequent hack
-function addWeakenGrowState(server, prevState) {
-	const percentMoney = (prevState.money || 1) / prevState.maxMoney;
-	const growthFactor = 1 / percentMoney;
-	let growThreads = Math.max(Math.ceil(ns.growthAnalyze(server.hostname, growthFactor, 1)), 1);
-	let security = ns.growthAnalyzeSecurity(growThreads);
+function addWeakenHackState(server, prevState) {
+	// const percentMoney = (prevState.money || 1) / prevState.maxMoney;
+	// const growthFactor = 1 / percentMoney;
+  let hackThreads = Math.max(Math.ceil(ns.hackAnalyze(server.hostname, growthFactor, 1)), 1);
+	let security = ns.hackAnalyzeSecurity(hackThreads);
 	let securityThreads = Math.max(Math.ceil(security / ns.weakenAnalyze(1, 1)), 1);
 	const threadsAvail = getThreadAvailable(grow_scriptRam);
 	while(threadsAvail < (growThreads + securityThreads)){
