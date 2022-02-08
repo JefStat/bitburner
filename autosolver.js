@@ -60,6 +60,12 @@ function solve(type, data, server, contract, ns) {
         case "Find All Valid Math Expressions":
             solution = allExpressions(data);
             break;
+        case "Sanitize Parentheses in Expression":
+            solution = sanitizeParentheses(data);
+            break;
+        case "Total Ways to Sum":
+            solution = totalWayToSum(data);
+            break;
         default:
             solution = "";
             ns.tprint(type + ' No solution implemented');
@@ -365,4 +371,96 @@ function allExpressions(data) {
             try { return eval(e) === data[1] }
             catch (e) { return false }
         })
+}
+
+// Sanitize Parentheses in Expression
+
+function sanitizeParentheses(data) {
+    var solution = Sanitize(data)
+    if (solution == null) { return ('[""]') }
+    else { return ("[" + solution.join(",") + "]") }
+}
+
+function Sanitize_removeOneParth(item) {
+    var possibleAnswers = []
+    for (let i = 0; i < item.length; i++) {
+        if (item[i].toLowerCase().indexOf("(") === -1 && item[i].toLowerCase().indexOf(")") === -1) {
+            continue
+        }
+        let possible = item.substring(0, i) + item.substring(i + 1);
+        possibleAnswers.push(possible)
+    }
+    return possibleAnswers
+}
+
+function Sanitize_isValid(item) {
+    var unclosed = 0
+    for (var i = 0; i < item.length; i++) {
+        if (item[i] == "(") { unclosed++ }
+        else if (item[i] == ")") { unclosed-- }
+        if (unclosed < 0) { return false }
+    }
+    return unclosed == 0
+}
+
+function Sanitize(data) {
+    var currentPossible = [data]
+    for (var i = 0; i < currentPossible.length; i++) {
+        var newPossible = new Set()
+        for (var j = 0; j < currentPossible.length; j++) {
+            let newRemovedPossible = Sanitize_removeOneParth(currentPossible[j])
+
+            for (let item of newRemovedPossible) {
+                newPossible.add(item)
+            }
+        }
+
+        var validBoolList = []
+
+        for (let item of newPossible) {
+            validBoolList.push(Sanitize_isValid(item))
+        }
+        if (validBoolList.includes(true)) {
+            var finalList = []
+            newPossible = [...newPossible]
+
+            for (var j = 0; j < validBoolList.length; j++) {
+                if (validBoolList[j]) {
+                    finalList.push(newPossible[j])
+                }
+            }
+
+            finalList = new Set(finalList)
+
+            return [...finalList]
+        }
+        currentPossible = [...newPossible]
+    }
+
+    return null
+}
+
+function totalWayToSum(data) {
+    let cache = {};
+    let n = data;
+    return twts(n, n, cache) - 1;
+}
+
+function twts(limit, n, cache) {
+    if (n < 1) { return 1; }
+    if (limit == 1) { return 1; }
+    if (n < limit) { return twts(n, n, cache); }
+
+    if (n in cache) {
+        let c = cache[n];
+        if (limit in c) { return c[limit]; }
+    }
+
+    let s = 0;
+    for (let i = 1; i <= limit; i++) {
+        s += twts(i, n - i, cache);
+    }
+
+    if (!(n in cache)) { cache[n] = {}; }
+    cache[n][limit] = s; return s;
 }
