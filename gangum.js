@@ -3,7 +3,7 @@ let ns;
 let gang = {};
 let members = [];
 let tasks = [];
-const percentAtWar = .4;
+let percentAtWar = 50;
 
 /** @param {NS} pns **/
 export async function main(pns) {
@@ -31,21 +31,32 @@ export async function main(pns) {
 		getMembersStats();
 		getTasksStats();
 		ascend();
+		war();
 		setTasks(moneyTask);
 		equip();
-		war();
-
-		await ns.sleep((ns.gang.getBonusTime() ? 6 : 60) * 1000);
+		await ns.sleep((ns.gang.getBonusTime() > 10000 ? 6 : 60) * 1000);
 	}
 }
 
 function war() {
 	const og = ns.gang.getOtherGangInformation();
-	const strongerGangs = Object.values(og).filter(s => s.power > gang.power).length === 0;
+	const maxOtherGangPower = Math.max(...Object.entries(og).map(([k, s]) => (k === gang.faction ? 0 : ( s.territory <= 0 ? 0: s.power))));
+	if (maxOtherGangPower * 1.5 < gang.power) {
+		percentAtWar -= 10;
+		if (percentAtWar < 0) {
+			percentAtWar = 0;
+		} else {
+			ns.print(`Percent at war ${percentAtWar}`);
+		}
+	} else if (maxOtherGangPower > gang.power && percentAtWar < 50) {
+		percentAtWar += 10;
+	}
+	const strongerGangs = maxOtherGangPower < gang.power;
 	if (gang.territoryWarfareEngaged !== strongerGangs) {
 		ns.print(`Changing warefare to ${strongerGangs}`);
-		ns.toast(`Changing warefare to ${strongerGangs}`, strongerGangs ? 'info' : 'warning', 10000);
+		ns.toast(`Changing warefare to ${strongerGangs}`, strongerGangs ? 'info' : 'warning', 30000);
 	}
+	// ns.print(`maxOtherGangPower ${maxOtherGangPower} strongerGangs ${strongerGangs} gang.power ${gang.power} gang.territoryWarfareEngaged ${gang.territoryWarfareEngaged}`)
 	ns.gang.setTerritoryWarfare(strongerGangs);
 }
 
@@ -74,8 +85,6 @@ function ascend() {
 		multis += member.str_asc_mult;
 		const res = ns.gang.getAscensionResult(member.name);
 		if (!res) continue;
-		// let res_multi = res.agi + res.def + res.dex + res.hack + res.str - 5.1;
-		//if (multis * 2 < res_multi) {
 		// ascend values are kinda odd to get a feel for.
 		// result multiplier are a percentage increase of the current value.
 		// multiply these together if the multipliers go up by 5 times then good enough to ascend
@@ -83,7 +92,7 @@ function ascend() {
 		if (res_multi > 5) {
 			ns.gang.ascendMember(member.name);
 			ns.print(`Ascended ${member.name} multis ${multis.toPrecision(4)}, res_multi ${res_multi.toPrecision(4)}`);
-			ns.toast(`Ascended ${member.name} multis ${multis.toPrecision(4)}, res_multi ${res_multi.toPrecision(4)}`, 'info', 10000)
+			ns.toast(`Ascended ${member.name} multis ${multis.toPrecision(4)}, res_multi ${res_multi.toPrecision(4)}`, 'info', 30000)
 		}
 	}
 }
@@ -114,8 +123,8 @@ function setTasks(taskFunc) {
 	}
 	// if not skilled enough to do better that nothing or the first task help out with the war effort
 	// Otherwise newest recruits go to war effort
-	const warriors = Math.round(members.length * percentAtWar);
-	ns.print(`viglante ${viglante} warriors ${warriors}`)
+	const warriors = Math.round(members.length * (percentAtWar / 100));
+	//	ns.print(`viglante ${viglante} warriors ${warriors}`)
 	let i = 0;
 	for (const member of members) {
 		i++;
@@ -136,7 +145,7 @@ function setTasks(taskFunc) {
 			bestTask = 'Vigilante Justice';
 		}
 		if (ns.gang.setMemberTask(member.name, bestTask) && prevTask !== bestTask) {
-			ns.print(`assigned Gang Member '${member.name}' to '${bestTask}' task`);
+			ns.print(`assigned '${member.name}' to '${bestTask}'`);
 		}
 	}
 }

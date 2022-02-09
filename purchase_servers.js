@@ -1,7 +1,9 @@
 /** @param {NS} ns **/
 export async function main(ns) {
-    if (ns.getPlayer().bitNodeN === 2) {
-        ns.tprint('Not buying servers in bitnode 2');
+    const player = ns.getPlayer();
+    const bitNodeN = player.bitNodeN;
+    if ( bitNodeN === 2 && player.hacking < 2000) {
+        ns.tprint('Not buying servers in bitnode 2... yet');
     } else {
         // const ram = 32768;
         const ram = ns.getServer('home').maxRam / 2;
@@ -17,8 +19,8 @@ export async function main(ns) {
             await ns.sleep(3000);
         }
     }
-    if (ns.getPlayer().bitNodeN === 5) {
-        ns.tprint('Not buying hacknet servers in bitnode 5');
+    if (bitNodeN === 5 || bitNodeN === 2) {
+        ns.tprint('Not buying hacknet servers in bitnode 5 or 2');
         return;
     }
     const maxCores = ns.formulas.hacknetNodes.coreUpgradeCost(1, 15);

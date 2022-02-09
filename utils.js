@@ -11,7 +11,6 @@ export async function runHackScript(ns, script, host, threads, target) {
 /** @param {NS} ns **/
 export function getHosts(ns, scriptRam) {
 	const openedServers = list_servers(ns).filter(s => ns.hasRootAccess(s) && ns.getServerMaxRam(s) > 1);
-	const serversForExecution = ns.getPurchasedServers().concat(openedServers);
 	const s = ns.getServer('home');
 	// reserve some ram for other scripts
 	if (s.maxRam >= 64) {
@@ -24,7 +23,7 @@ export function getHosts(ns, scriptRam) {
 		cpuCores: s.cpuCores,
 		threadsAvailable: Math.max(Math.floor((s.maxRam - s.ramUsed) / scriptRam), 0)
 	}];
-	for (const host of serversForExecution) {
+	for (const host of openedServers) {
 		const s = ns.getServer(host);
 		const threadsAvailable = Math.max(Math.floor((s.maxRam - s.ramUsed) / scriptRam), 0);
 		hostServers.push({
