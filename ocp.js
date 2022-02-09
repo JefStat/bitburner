@@ -4,12 +4,16 @@ let maxBatches = 40; // the max number of batches this daemon will spool up to a
 // For timing reasons the delay between each step should be *close* 1/4th of this number, but there is some imprecision
 let cycleTimingDelay = 1600;
 let verbose = true;
+
+// const thing = {};
+// module.exports = 
+
 /** @param {NS} ns **/
-export async main(ns) {
+export async function main(ns) {
     let performanceSnapshot = optimizePerformanceMetrics(server); // Adjust the percentage to steal for optimal scheduling
     await performScheduling(ns, server, performanceSnapshot)
 }
-async function performScheduling(ns, currentTarget, snapshot) {
+export async function performScheduling(currentTarget, snapshot) {
     const start = Date.now();
     const scheduledTasks = [];
     const maxCycles = Math.min(snapshot.optimalPacedCycles, snapshot.maxCompleteCycles);
@@ -177,7 +181,7 @@ function getScheduleItem(description, toolShortName, start, end, threadsNeeded) 
 }
 
 // Adjusts the "percentage to steal" for a target based on its respective cost and the current network RAM available
-function optimizePerformanceMetrics(currentTarget) {
+export function optimizePerformanceMetrics(currentTarget) {
     const maxAdjustments = 1000;
     const start = Date.now();
     const networkStats = getNetworkStats();
