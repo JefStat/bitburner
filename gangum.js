@@ -3,7 +3,8 @@ let ns;
 let gang = {};
 let members = [];
 let tasks = [];
-let percentAtWar = 50;
+let percentAtWar = 0;
+let war2Handle;
 
 /** @param {NS} pns **/
 export async function main(pns) {
@@ -19,6 +20,8 @@ export async function main(pns) {
 		//ns.createGang('Slum Snakes')... todo
 		return;
 	}
+	clearInterval(war2Handle);
+	war2();
 	const moneyTask = ns.formulas.gang.moneyGain;
 	const respectTask = ns.formulas.gang.respectGain;
 	const wantedTask = (g, m, t) => -1 * ns.formulas.gang.wantedLevelGain(g, m, t);
@@ -38,6 +41,38 @@ export async function main(pns) {
 	}
 }
 
+function war2() {
+	let prevTickTime = Date.now();
+	let prevPower = gang.power;
+	let lastPowerChange = Date.now();
+	let nextTick = -1;
+	war2Handle = setInterval(() => {
+		const isBonusTime = ns.gang.getBonusTime() >= 10*1000;
+		gang = ns.gang.getGangInformation();
+		if (prevPower === gang.power) {
+			// do nothing
+		}
+		if (prevPower < gang.power) {
+			prevPower = gang.power;
+			lastPowerChange = Date.now();
+			prevTickTime = nextTick;
+			nextTick = lastPowerChange + (isBonusTime ? 2 : 20) * 1000;
+		}
+		let timeTillAfterTick = Date.now() - prevTickTime;
+		let timeTillTick = nextTick - Date.now();
+		if ( (0 < timeTillTick && timeTillTick < 500) &&( 0< timeTillAfterTick && timeTillAfterTick < 500) ){
+			//WarTime!
+			ns.print(`Wartime remaining ${ns.tFormat(timeTillAfterTick)}`);
+			for (const member of members) {
+				ns.gang.setMemberTask(member.name, 'Territory Warfare')
+			}
+		} else {
+			ns.print(`Wartime in timeTillTick ${ns.tFormat(timeTillTick)} for ${ns.tFormat(timeTillAfterTick- timeTillTick)}`);
+			//PeaceTime
+			setTasks(ns.formulas.gang.moneyGain);
+		}
+	}, 100);
+}
 function war() {
 	const og = ns.gang.getOtherGangInformation();
 	const maxOtherGangPower = Math.max(...Object.entries(og).map(([k, s]) => (k === gang.faction ? 0 : ( s.territory <= 0 ? 0: s.power))));
@@ -53,8 +88,8 @@ function war() {
 	}
 	const strongerGangs = maxOtherGangPower < gang.power;
 	if (gang.territoryWarfareEngaged !== strongerGangs) {
-		ns.print(`Changing warefare to ${strongerGangs}`);
-		ns.toast(`Changing warefare to ${strongerGangs}`, strongerGangs ? 'info' : 'warning', 30000);
+		ns.print(`Changing warfare to ${strongerGangs}`);
+		ns.toast(`Changing warfare to ${strongerGangs}`, strongerGangs ? 'info' : 'warning', 30000);
 	}
 	// ns.print(`maxOtherGangPower ${maxOtherGangPower} strongerGangs ${strongerGangs} gang.power ${gang.power} gang.territoryWarfareEngaged ${gang.territoryWarfareEngaged}`)
 	ns.gang.setTerritoryWarfare(strongerGangs);
@@ -116,7 +151,7 @@ function setTasks(taskFunc) {
 	if (ns.formulas.gang.wantedPenalty(gang) < 0.99 && gang.wantedLevel > 2) {
 		vigilantesNeeded = (vigilantesNeeded * 1.5) || .15;
 		viglante = Math.floor(members.length * vigilantesNeeded);
-		// little float overflow reversal 
+		// little float overflow reversal
 		vigilantesNeeded = viglante >= members.length ? vigilantesNeeded / 2 : vigilantesNeeded;
 	} else {
 		vigilantesNeeded = 0;
@@ -141,7 +176,7 @@ function setTasks(taskFunc) {
 		if (bestTask === '' || bestTask === tasks[1].name || members.length - i < warriors) {
 			bestTask = 'Territory Warfare';
 		}
-		if (vigilantesNeeded != 0 && warriors <= members.length - i && members.length - i < viglante + warriors) {
+		if (vigilantesNeeded !== 0 && warriors <= members.length - i && members.length - i < viglante + warriors) {
 			bestTask = 'Vigilante Justice';
 		}
 		if (ns.gang.setMemberTask(member.name, bestTask) && prevTask !== bestTask) {
