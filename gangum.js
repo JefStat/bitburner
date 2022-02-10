@@ -73,6 +73,7 @@ function isWartime() {
     }
   }
   if (warTracker.prevPower < gang.power) {
+    ns.print('PowerTick ' + new Date().toISOString());
     warTracker.prevPower = gang.power;
     warTracker.lastPowerChange = Date.now();
     warTracker.prevTickTime = warTracker.lastPowerChange;
