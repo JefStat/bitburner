@@ -67,11 +67,11 @@ function solve(type, data, server, contract, ns) {
             solution = totalWayToSum(data);
             break;
         default:
-            solution = "";
+            solution = null;
             ns.tprint(type + ' No solution implemented');
             break;
     }
-    return (solution != "") ? ns.codingcontract.attempt(solution, contract, server, { returnReward: true }) : "";
+    return (solution !== null) ? ns.codingcontract.attempt(solution, contract, server, { returnReward: true }) : null;
 }
 
 //ALGORITHMIC STOCK TRADER
@@ -357,20 +357,20 @@ function arrayJump(arr) {
 
 
 // works for simple answers locks up a browser for large ones
-function allExpressions( data ) {
-    const digits = data[0].split( '' )
+function allExpressions(data) {
+    const digits = data[0].split('')
     const operators = ['+', '-', '*', '']
     let expressions = [digits[0], '-' + digits[0]]
-        .flatMap( d => operators.map( op => d + op ))
-    for( let i = 1; i < digits.length - 1; i++ ) {
+        .flatMap(d => operators.map(op => d + op))
+    for (let i = 1; i < digits.length - 1; i++) {
         expressions = expressions
-            .flatMap( e => operators.map( op => e + digits[i] + op) )
+            .flatMap(e => operators.map(op => e + digits[i] + op))
     }
-    return expressions.map( e => e + digits[digits.length - 1] )
-        .filter( e => {
-            try{ return eval(e) === data[1] }
-            catch(e) { return false }
-        } )
+    return expressions.map(e => e + digits[digits.length - 1])
+        .filter(e => {
+            try { return eval(e) === data[1] }
+            catch (e) { return false }
+        })
 }
 
 // Sanitize Parentheses in Expression
