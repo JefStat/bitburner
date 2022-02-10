@@ -1,12 +1,24 @@
+let ns;
+
 let queueDelay = 100; // the delay that it can take for a script to start, used to pessimistically schedule things in advance
-let maxBatches = 40; // the max number of batches this daemon will spool up to avoid running out of IRL ram 
+let maxBatches = 40; // the max number of batches this daemon will spool up to avoid running out of IRL ram
 // the number of milliseconds to delay the grow execution after theft to ensure it doesn't trigger too early and have no effect.
 // For timing reasons the delay between each step should be *close* 1/4th of this number, but there is some imprecision
 let cycleTimingDelay = 1600;
 let verbose = true;
 
-// const thing = {};
-// module.exports = 
+
+let rootedServers;
+
+
+function log(m) {
+    ns.print ? ns.print(m) : console.log(m);
+}
+
+export function fakeInit(rServers) {
+    ns = {};
+    rootedServers = rServers;
+}
 
 /** @param {NS} ns **/
 export async function main(ns) {
@@ -202,13 +214,13 @@ export function optimizePerformanceMetrics(currentTarget) {
     currentTarget.percentageToSteal = Math.max(currentTarget.percentageToSteal, percentPerHackThread); // If the initial % to steal is below the minimum, raise it
     // Make adjustments to the number of hack threads until we zero in on the best amount
     while (++attempts < maxAdjustments) {
-        var performanceSnapshot = getPerformanceSnapshot(currentTarget, networkStats);
+        let performanceSnapshot = getPerformanceSnapshot(currentTarget, networkStats);
         const adjustment = analyzeSnapshot(performanceSnapshot, currentTarget, networkStats, increment);
         if (runOnce && verbose)
             log(`Adjustment ${attempts} (increment ${increment}): ${adjustment} to ${newHackThreads} hack threads ` +
                 `(from ${formatNumber(currentTarget.actualPercentageToSteal() * 100)}% or ${currentTarget.getHackThreadsNeeded()} hack threads)`);
-        if (adjustment === 0.00 && increment == 1) break; // We've zeroed in on the exact number of hack threads we want
-        if (adjustment === 0.00 || Math.sign(adjustment) != lastAdjustmentSign) { // Each time we change the direction of adjustments, slow the adjustment rate
+        if (adjustment === 0.00 && increment === 1) break; // We've zeroed in on the exact number of hack threads we want
+        if (adjustment === 0.00 || Math.sign(adjustment) !== lastAdjustmentSign) { // Each time we change the direction of adjustments, slow the adjustment rate
             increment = Math.max(1, Math.floor((increment / 2.0).toPrecision(14)));
             lastAdjustmentSign = adjustment === 0.00 ? lastAdjustmentSign : Math.sign(adjustment);
         }
@@ -251,4 +263,17 @@ function analyzeSnapshot(snapshot, currentTarget, networkStats, incrementalHackT
         return isOvershot(comparisonSnapshot) ? 0.00 : incrementalHackThreads;
     }
     return 0.00;
+}
+
+// Helpers to get slices of info / cumulative stats across all rooted servers
+function getNetworkStats() {
+    const listOfServersFreeRam = rootedServers.map(s => s.ramAvailable()).filter(ram => ram > 1.6); // Servers that can't run a script don't count
+    const totalMaxRam = rootedServers.map(s => s.totalRam()).reduce((a, b) => a + b, 0);
+    const totalFreeRam = listOfServersFreeRam.reduce((a, b) => a + b, 0);
+    return {
+        listOfServersFreeRam: listOfServersFreeRam,
+        totalMaxRam: totalMaxRam,
+        totalFreeRam: totalFreeRam,
+        totalUsedRam: totalMaxRam - totalFreeRam,
+    };
 }
