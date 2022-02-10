@@ -67,11 +67,11 @@ function solve(type, data, server, contract, ns) {
             solution = totalWayToSum(data);
             break;
         default:
-            solution = "";
+            solution = null;
             ns.tprint(type + ' No solution implemented');
             break;
     }
-    return (solution != "") ? ns.codingcontract.attempt(solution, contract, server, { returnReward: true }) : "";
+    return (solution !== null) ? ns.codingcontract.attempt(solution, contract, server, { returnReward: true }) : null;
 }
 
 //ALGORITHMIC STOCK TRADER
