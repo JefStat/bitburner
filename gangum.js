@@ -3,14 +3,8 @@ let ns;
 let gang = {};
 let members = [];
 let tasks = [];
-let percentAtWar = 0;
 let maxOtherGangPower;
-let warTracker = {
-  prevTickTime: Date.now(),
-  prevPower: -1,
-  lastPowerChange: Date.now(),
-  nextTick: -1
-};
+let warTracker;
 
 /** @param {NS} pns **/
 export async function main(pns) {
@@ -27,11 +21,15 @@ export async function main(pns) {
     //ns.createGang('Slum Snakes')... todo
     return;
   }
-  isWartime();
+  warTracker = {
+    prevPower: -1,
+    lastPowerChange: Date.now(),
+    nextTick: -1
+  };
   const moneyTask = ns.formulas.gang.moneyGain;
   const respectTask = ns.formulas.gang.respectGain;
   const wantedTask = (g, m, t) => -1 * ns.formulas.gang.wantedLevelGain(g, m, t);
-  const warTask = (g, m, t) => t === 'Territory Warfare' ? 100 : 0;
+  const warTask = (g, m, t) => t.name === 'Territory Warfare' ? 100 : 0;
   while (true) {
     gang = ns.gang.getGangInformation();
     const og = ns.gang.getOtherGangInformation();
@@ -57,53 +55,41 @@ function isWartime() {
   if (maxOtherGangPower * 1.5 < gang.power) {
     return false;
   }
-  const isBonusTime = ns.gang.getBonusTime() >= 10 * 1000;
+  if (warTracker.prevPower === -1) {
+    warTracker.prevPower = gang.power;
+  }
+  const isBonusTime = ns.gang.getBonusTime() >= 10;
+  if (warTracker.prevPower < gang.power) {
+    warTracker.prevPower = gang.power;
+    warTracker.lastPowerChange = Date.now();
+    warTracker.nextTick = warTracker.lastPowerChange + (isBonusTime ? 2 : 20) * 1000;
+    ns.print(`PowerTick ${new Date().toLocaleTimeString()} next tick at ${new Date(warTracker.nextTick).toLocaleTimeString()}`);
+  }
+  if (warTracker.nextTick === -1) {
+    //ns.print(`waiting for tick`);
+    return false;
+  }
   if (warTracker.prevPower === gang.power) {
     if (warTracker.nextTick > Date.now()) {
       // waiting for next tick
     } else {
       // tick was early
-      ns.print(`war tick was early by ${ns.tFormat(Date.now() - warTracker.nextTick)}`);
-    }
-    if (warTracker.prevTickTime > Date.now()) {
-      // prevTickTime should never be in the future
-      ns.print(`war previous tick is in the future by ${ns.tFormat(warTracker.prevTickTime - Date.now())} next tick is ${ns.tFormat(Date.now() - warTracker.nextTick)}  from now`);
-    } else {
-      warTracker.prevTickTime = warTracker.lastPowerChange;
+      ns.print(`war tick was early by ${Date.now() - warTracker.nextTick}`);
+      warTracker.nextTick = -1;
     }
   }
-  if (warTracker.prevPower < gang.power) {
-    ns.print('PowerTick ' + new Date().toISOString());
-    warTracker.prevPower = gang.power;
-    warTracker.lastPowerChange = Date.now();
-    warTracker.prevTickTime = warTracker.lastPowerChange;
-    warTracker.nextTick = warTracker.lastPowerChange + (isBonusTime ? 2 : 20) * 1000;
-  }
-  let timeTillAfterTick = Date.now() - warTracker.prevTickTime;
-  let timeTillTick = nextTick - Date.now();
-  // if before war tick or until just past the
-  if ((0 < timeTillTick && timeTillTick < 500) || (0 < timeTillAfterTick && timeTillAfterTick < 500)) {
+  let timeTillTick = warTracker.nextTick - Date.now();
+  // if before war tick and until just past the tick. Power tick will update nextTick to stop war time
+  if (-2000 < timeTillTick && timeTillTick < 500) {
     //WarTime!
-    ns.print(`Wartime remaining ${ns.tFormat(timeTillAfterTick)}`);
+    ns.print(`Wartime remaining ${timeTillTick}`);
     return true;
   } else {
-    ns.print(`Wartime in timeTillTick ${ns.tFormat(timeTillTick)} for ${ns.tFormat(timeTillAfterTick - timeTillTick)}`);
     return false;
   }
 }
 
 function war() {
-
-  // if (maxOtherGangPower * 1.5 < gang.power) {
-  //   percentAtWar -= 10;
-  //   if (percentAtWar < 0) {
-  //     percentAtWar = 0;
-  //   } else {
-  //     ns.print(`Percent at war ${percentAtWar}`);
-  //   }
-  // } else if (maxOtherGangPower > gang.power && percentAtWar < 50) {
-  //   percentAtWar += 10;
-  // }
   const strongerGangs = maxOtherGangPower < gang.power;
   if (gang.territoryWarfareEngaged !== strongerGangs) {
     ns.print(`Changing warfare to ${strongerGangs}`);
@@ -178,10 +164,6 @@ function setTasks(taskFunc) {
   } else {
     vigilantesNeeded = 0;
   }
-  // if not skilled enough to do better that nothing or the first task help out with the war effort
-  // Otherwise newest recruits go to war effort
-  const warriors = Math.round(members.length * (percentAtWar / 100));
-  //	ns.print(`viglante ${viglante} warriors ${warriors}`)
   let i = 0;
   for (const member of members) {
     i++;
@@ -195,10 +177,15 @@ function setTasks(taskFunc) {
         mg = nmg;
       }
     }
-    if (bestTask === '' || bestTask === tasks[1].name || members.length - i < warriors) {
+    // if waiting for a power tick
+    if (warTracker.nextTick === -1) {
       bestTask = 'Territory Warfare';
     }
-    if (vigilantesNeeded !== 0 && warriors <= members.length - i && members.length - i < viglante + warriors) {
+    // if nothing or unassigned train
+    if (bestTask === '' || bestTask === tasks[1].name) {
+      bestTask = gang.isHacking ? 'Train Hacking' : 'Train Combat';
+    }
+    if (vigilantesNeeded !== 0 && members.length - i < viglante) {
       bestTask = 'Vigilante Justice';
     }
     if (ns.gang.setMemberTask(member.name, bestTask) && prevTask !== bestTask) {

@@ -15,7 +15,7 @@ export async function main(pns) {
 	await upgrade(2);
 }
 
-let upgradeNames  = ['FocuseWires', 'Neural Accelerators', ' Speech Processor Implants', 'Nuoptimal Nootropic Injector Implants', 'Smart Factories'];
+let upgradeNames  = ['Focus Wires', 'Neural Accelerators', ' Speech Processor Implants', 'Nuoptimal Nootropic Injector Implants', 'Smart Factories'];
 async function upgrade(k) {
 	let i = 0;
 	while ( i< upgradeNames.length) {
@@ -33,7 +33,7 @@ async function upgrade(k) {
 }
 
 function sell() {
-	for(let cityName of cites) {
+	for(let cityName of cities) {
 		c.sellMaterial(divisions[0], cityName, 'Plants', 'MAX', 'MP');
 		c.sellMaterial(divisions[0], cityName, 'Food', 'MAX', 'MP');
 	}
@@ -51,7 +51,7 @@ async function expand() {
 			continue;
 		}
 		let divisionName = divisions[0];
-		let cityName =cites[i];
+		let cityName =cities[i];
 
 		c.expandCity(divisionName, cityName);
 		c.setSmartSupply(divisionName, cityName, true);
@@ -61,11 +61,11 @@ async function expand() {
 		c.assignJob(divisionName, cityName, emp.name, job);
 
 		emp = c.hireEmployee(divisionName, cityName);
-		let job = 'Engineer';
+		job = 'Engineer';
 		c.assignJob(divisionName, cityName, emp.name, job);
 		
 		emp = c.hireEmployee(divisionName, cityName);
-		let job = 'Business';
+		job = 'Business';
 		c.assignJob(divisionName, cityName, emp.name, job);
 
 		i++;
@@ -81,8 +81,8 @@ async function expand() {
 	}
 
 	i = 0;
-	while ( i < cites.length) {
-		let cityName = cites[i];
+	while ( i < cities.length) {
+		let cityName = cities[i];
 		let divisionName = divisions[0];
 		
 		if (c.hasWarehouse(divisionName, cityName)) {
