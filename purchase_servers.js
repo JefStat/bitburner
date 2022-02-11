@@ -2,7 +2,7 @@
 export async function main(ns) {
     const player = ns.getPlayer();
     const bitNodeN = player.bitNodeN;
-    if ( bitNodeN === 2 && player.hacking < 2000) {
+    if ( bitNodeN === 2 && player.hacking < 100) {
         ns.tprint('Not buying servers in bitnode 2... yet');
     } else {
         // const ram = 32768;
