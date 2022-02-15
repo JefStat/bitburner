@@ -10,6 +10,55 @@ let verbose = true;
 
 let rootedServers;
 let player;
+let ram_total = 64;
+let bitnodeMults = {
+  'HackingLevelMultiplier': 1,
+  'StrengthLevelMultiplier': 1,
+  'DefenseLevelMultiplier': 1,
+  'DexterityLevelMultiplier': 1,
+  'AgilityLevelMultiplier': 1,
+  'CharismaLevelMultiplier': 1,
+  'ServerGrowthRate': 1,
+  'ServerMaxMoney': 2,
+  'ServerStartingMoney': 0.5,
+  'ServerStartingSecurity': 2,
+  'ServerWeakenRate': 1,
+  'HomeComputerRamCost': 1,
+  'PurchasedServerCost': 1,
+  'PurchasedServerSoftcap': 1.2,
+  'PurchasedServerLimit': 1,
+  'PurchasedServerMaxRam': 1,
+  'CompanyWorkMoney': 1,
+  'CrimeMoney': 0.5,
+  'HacknetNodeMoney': 0.2,
+  'ManualHackMoney': 1,
+  'ScriptHackMoney': 0.15,
+  'ScriptHackMoneyGain': 1,
+  'CodingContractMoney': 1,
+  'ClassGymExpGain': 1,
+  'CompanyWorkExpGain': 1,
+  'CrimeExpGain': 1,
+  'FactionWorkExpGain': 1,
+  'HackExpGain': 0.5,
+  'FactionPassiveRepGain': 1,
+  'FactionWorkRepGain': 1,
+  'RepToDonateToFaction': 1,
+  'AugmentationMoneyCost': 2,
+  'AugmentationRepCost': 1,
+  'InfiltrationMoney': 1.5,
+  'InfiltrationRep': 1.5,
+  'FourSigmaMarketDataCost': 1,
+  'FourSigmaMarketDataApiCost': 1,
+  'CorporationValuation': 0.5,
+  'CorporationSoftCap': 1,
+  'BladeburnerRank': 1,
+  'BladeburnerSkillCost': 1,
+  'GangSoftcap': 1,
+  'DaedalusAugsRequirement': 1,
+  'StaneksGiftPowerMultiplier': 1.3,
+  'StaneksGiftExtraSize': 0,
+  'WorldDaemonDifficulty': 1.5
+};
 
 function log(m) {
   ns.print ? ns.print(m) : console.log(m);
@@ -20,7 +69,7 @@ function formatMoney(m) {
 }
 
 export function fakeInit(pns, rServers, pplayer) {
-  ns= pns;
+  ns = pns;
   rootedServers = rServers;
   player = pplayer;
 }
@@ -289,128 +338,74 @@ function getNetworkStats() {
 }
 
 const playerHackSkill = () => player.hacking;
+const getPlayerHackingGrowMulti = () => player.hacking_grow_mult;
+
+
+// initial potency of weaken threads before multipliers
+const weakenThreadPotency = 0.05;
+// Pad weaken thread counts to account for undershooting. (Shouldn't happen. And if this is a timing issue, padding won't help)
+const weakenThreadPadding = 0; //0.01;
+// How much a weaken thread is expected to reduce security by
+let actualWeakenPotency = () => bitnodeMults.ServerWeakenRate * weakenThreadPotency * (1 - weakenThreadPadding);
 
 export function buildServerObject(ns, hostname) {
   const s = ns.getServer();
-  return {
+  // track how costly (in security) a growth/hacking thread is.
+  const growthThreadHardening = 0.004;
+  const hackThreadHardening = 0.002;
+  // unadjusted server growth rate, this is way more than what you actually get
+  const unadjustedGrowthRate = 1.03;
+  // max server growth rate, growth rates higher than this are throttled.
+  const maxGrowthRate = 1.0035;
+  const so = {
     ns: ns,
     name: hostname,
     minDifficulty: s.minDifficulty,
     moneyMax: s.moneyMax,
-    getMoneyPerRamSecond: () => dictServerProfitInfo ? dictServerProfitInfo[node]?.gainRate ?? 0 : (dictServerMaxMoney[node] ?? 0),
-    getExpPerSecond: () => dictServerProfitInfo ? dictServerProfitInfo[node]?.expRate ?? 0 : (1 / dictServerMinSecurityLevels[node] ?? 0),
+    getMoneyPerRamSecond: () => getRatesAtHackLevel(ns, s, player, playerHackSkill(), ram_total),
     percentageToSteal: 1.0 / 16.0, // This will get tweaked automatically based on RAM available and the relative value of this server
-    getMoney: function () { return this.ns.getServerMoneyAvailable(this.name); },
-    getSecurity: function () { return this.ns.getServerSecurityLevel(this.name); },
-    canCrack: function () { return getNumPortCrackers() >= s.numOpenPortsRequired; },
+    getMoney: () => ns.getServerMoneyAvailable(hostname),
+    getSecurity: () => ns.getServerSecurityLevel(hostname),
+    // canCrack: function () { return getNumPortCrackers() >= s.numOpenPortsRequired; },
     canHack: () => s.requiredHackingSkill <= playerHackSkill(),
-    shouldHack: function () {
-      return this.getMaxMoney() > 0 && this.name !== 'home' && !this.name.startsWith('hacknet-node-') &&
-        !this.name.startsWith(purchasedServersName); // Hack, but beats wasting 2.25 GB on ns.getPurchasedServers()
-    },
+    shouldHack: () => s.moneyMax > 0 && hostname !== 'home' && !hostname.startsWith('hacknet-node-'),
     previouslyPrepped: false,
     prepRegressions: 0,
     previousCycle: null,
-    // "Prepped" means current security is at the minimum, and current money is at the maximum
-    isPrepped: function () {
-      let currentSecurity = this.getSecurity();
-      let currentMoney = this.getMoney();
-      // Logic for whether we consider the server "prepped" (tolerate a 1% discrepancy)
-      let isPrepped = (currentSecurity == 0 || ((this.getMinSecurity() / currentSecurity) >= 0.99)) &&
-        (this.getMaxMoney() != 0 && ((currentMoney / this.getMaxMoney()) >= 0.99) || stockFocus /* Only prep security in stock-focus mode */);
-      return isPrepped;
-    },
-    // Function to tell if the sever is running any tools, with optional filtering criteria on the tool being run
-    isSubjectOfRunningScript: function (filter, useCache = true, count = false) {
-      const toolNames = hackTools.map(t => t.name);
-      let total = 0;
-      // then figure out if the servers are running the other 2, that means prep
-      for (const hostname of addedServerNames)
-        for (const process of ps(ns, hostname, useCache))
-          if (toolNames.includes(process.filename) && process.args[0] == this.name && (!filter || filter(process))) {
-            if (count) total++; else return true;
-          }
-      return count ? total : false;
-    },
-    isPrepping: function (useCache = true) {
-      return this.isSubjectOfRunningScript(process => process.args.length > 4 && process.args[4] == 'prep', useCache);
-    },
-    isTargeting: function (useCache = true) {
-      return this.isSubjectOfRunningScript(process => process.args.length > 4 && process.args[4].includes('Batch'), useCache);
-    },
-    isXpFarming: function (useCache = true) {
-      return this.isSubjectOfRunningScript(process => process.args.length > 4 && process.args[4].includes('FarmXP'), useCache);
-    },
-    serverGrowthPercentage: function () {
-      return this.ns.getServerGrowth(this.name) * bitnodeMults.ServerGrowthRate * getPlayerHackingGrowMulti() / 100;
-    },
-    adjustedGrowthRate: function () { return Math.min(maxGrowthRate, 1 + ((unadjustedGrowthRate - 1) / this.getMinSecurity())); },
-    actualServerGrowthRate: function () {
-      return Math.pow(this.adjustedGrowthRate(), this.serverGrowthPercentage());
-    },
+    isPrepped: () => (ns.getServerSecurityLevel(hostname) === 0 || ((s.minDifficulty / ns.getServerSecurityLevel(hostname)) >= 0.99)) &&
+      (s.moneyMax !== 0 && (ns.getServerMoneyAvailable(hostname) / s.moneyMax) >= 0.99),
+    serverGrowthPercentage: () => s.serverGrowth * bitnodeMults.ServerGrowthRate * getPlayerHackingGrowMulti() / 100,
+    adjustedGrowthRate: () => Math.min(maxGrowthRate, 1 + ((unadjustedGrowthRate - 1) / s.minDifficulty)),
     // this is the target growth coefficient *immediately*
-    targetGrowthCoefficient: function () {
-      return this.getMaxMoney() / Math.max(this.getMoney(), 1);
-    },
-    // this is the target growth coefficient per cycle, based on theft
-    targetGrowthCoefficientAfterTheft: function () {
-      return 1 / (1 - (this.getHackThreadsNeeded() * this.percentageStolenPerHackThread()));
-    },
-    cyclesNeededForGrowthCoefficient: function () {
-      return Math.log(this.targetGrowthCoefficient()) / Math.log(this.adjustedGrowthRate());
-    },
-    cyclesNeededForGrowthCoefficientAfterTheft: function () {
-      return Math.log(this.targetGrowthCoefficientAfterTheft()) / Math.log(this.adjustedGrowthRate());
-    },
-    percentageStolenPerHackThread: function () {
-      let server = {
-        hackDifficulty: this.getMinSecurity(),
-        requiredHackingSkill: this.requiredHackLevel
-      };
-      return ns.formulas.hacking.hackPercent(server, playerStats);
-    },
-    actualPercentageToSteal: function () {
-      return this.getHackThreadsNeeded() * this.percentageStolenPerHackThread();
-    },
-    getHackThreadsNeeded: function () {
-      // Force rounding of low-precision digits before taking the floor, to avoid double imprecision throwing us way off.
-      return Math.floor((this.percentageToSteal / this.percentageStolenPerHackThread()).toPrecision(14));
-    },
-    getGrowThreadsNeeded: function () {
-      return Math.min(this.getMaxMoney(), // Worse case (0 money on server) we get 1$ per thread
-        Math.ceil((this.cyclesNeededForGrowthCoefficient() / this.serverGrowthPercentage()).toPrecision(14)));
-    },
-    getGrowThreadsNeededAfterTheft: function () {
-      return Math.min(this.getMaxMoney(), // Worse case (0 money on server) we get 1$ per thread
-        Math.ceil((this.cyclesNeededForGrowthCoefficientAfterTheft() / this.serverGrowthPercentage()).toPrecision(14)));
-    },
-    getWeakenThreadsNeededAfterTheft: function () {
-      return Math.ceil((this.getHackThreadsNeeded() * hackThreadHardening / actualWeakenPotency()).toPrecision(14));
-    },
-    getWeakenThreadsNeededAfterGrowth: function () {
-      return Math.ceil((this.getGrowThreadsNeededAfterTheft() * growthThreadHardening / actualWeakenPotency()).toPrecision(14));
-    },
-    // Once we get root, we never lose it, so we can stop asking
-    _hasRootCached: false,
-    hasRoot: function () { return this._hasRootCached || (this._hasRootCached = this.ns.hasRootAccess(this.name)); },
-    isHost: function () { return this.name == daemonHost; },
-    totalRam: function () { return this.ns.getServerMaxRam(this.name); },
-    // Used ram is constantly changing
-    usedRam: function () {
-      var usedRam = this.ns.getServerUsedRam(this.name);
-      // Complete HACK: but for most planning purposes, we want to pretend home has more ram in use than it does to leave room for "preferred" jobs at home
-      if (this.name == 'home')
-        usedRam = Math.min(this.totalRam(), usedRam + homeReservedRam);
-      return usedRam;
-    },
-    ramAvailable: function () { return this.totalRam() - this.usedRam(); },
-    growDelay: function () { return this.timeToWeaken() - this.timeToGrow() + cycleTimingDelay; },
-    hackDelay: function () { return this.timeToWeaken() - this.timeToHack(); },
-    timeToWeaken: function () { return this.ns.getWeakenTime(this.name); },
-    timeToGrow: function () { return this.ns.getGrowTime(this.name); },
-    timeToHack: function () { return this.ns.getHackTime(this.name); },
-    weakenThreadsNeeded: function () { return Math.ceil(((this.getSecurity() - this.getMinSecurity()) / actualWeakenPotency()).toPrecision(14)); }
+    targetGrowthCoefficient: () => s.moneyMax / Math.max(ns.getServerMoneyAvailable(hostname), 1),
+    percentageStolenPerHackThread: () => ns.formulas.hacking.hackPercent({
+      hackDifficulty: s.minDifficulty,
+      requiredHackingSkill: s.requiredHackingSkill
+    }, player),
+    hasRoot: () => ns.hasRootAccess(hostname),
+    maxRam: s.maxRam,
+    usedRam: () => ns.getServerUsedRam(hostname),
+    ramAvailable: () => s.maxRam - ns.getServerUsedRam(hostname),
+    growDelay: () => ns.getWeakenTime(hostname) - ns.getGrowTime(hostname) + cycleTimingDelay,
+    hackDelay: () => ns.getWeakenTime(hostname) - ns.getHackTime(hostname),
+    timeToWeaken: () => ns.getWeakenTime(hostname),
+    timeToGrow: ns.getGrowTime(hostname),
+    timeToHack: ns.getHackTime(hostname),
+    weakenThreadsNeeded: () => Math.ceil(((ns.getServerSecurityLevel(hostname) - s.minDifficulty) / actualWeakenPotency()).toPrecision(14))
   };
+  // Force rounding of low-precision digits before taking the floor, to avoid double imprecision throwing us way off.
+  so.getHackThreadsNeeded = () => Math.floor((this.percentageToSteal / so.percentageStolenPerHackThread()).toPrecision(14));
+  so.cyclesNeededForGrowthCoefficient = () => Math.log(so.targetGrowthCoefficient()) / Math.log(so.adjustedGrowthRate());
+  so.cyclesNeededForGrowthCoefficientAfterTheft = () => Math.log(so.targetGrowthCoefficientAfterTheft()) / Math.log(so.adjustedGrowthRate());
+  so.actualServerGrowthRate = () => Math.pow(so.adjustedGrowthRate(), so.serverGrowthPercentage());
+  // this is the target growth coefficient per cycle, based on theft
+  so.targetGrowthCoefficientAfterTheft = () => 1 / (1 - (so.getHackThreadsNeeded() * so.percentageStolenPerHackThread()));
+  so.actualPercentageToSteal = () => so.getHackThreadsNeeded() * so.percentageStolenPerHackThread();
+  so.getGrowThreadsNeeded = () => Math.min(s.moneyMax, Math.ceil((so.cyclesNeededForGrowthCoefficient() / so.serverGrowthPercentage()).toPrecision(14)));
+  so.getGrowThreadsNeededAfterTheft = () => Math.min(s.moneyMax, Math.ceil((so.cyclesNeededForGrowthCoefficientAfterTheft() / so.serverGrowthPercentage()).toPrecision(14)));
+  so.getWeakenThreadsNeededAfterTheft = () => Math.ceil((so.getHackThreadsNeeded() * hackThreadHardening / actualWeakenPotency()).toPrecision(14));
+  so.getWeakenThreadsNeededAfterGrowth = () => Math.ceil((so.getGrowThreadsNeededAfterTheft() * growthThreadHardening / actualWeakenPotency()).toPrecision(14));
+  return so;
 }
 
 const weaken_ram = 1.75;
@@ -420,10 +415,12 @@ const hack_ram = 1.7;
 // Helper to compute server gain/exp rates at a specific hacking level
 export function getRatesAtHackLevel(ns, server, player, hackLevel, ram_total) {
   // Assume we will have weaken the server to min-security and taken it to max money
+  const real_hackDifficulty = server.hackDifficulty;
+  const real_moneyAvailable = server.moneyAvailable;
   server.hackDifficulty = server.minDifficulty;
   server.moneyAvailable = server.moneyMax;
   // Temporarily change the hack level on the player object to the requested level
-  const real_player_hack_skill = player.hacking;
+  const real_player_hacking = player.hacking;
   player.hacking = hackLevel;
   // Compute the cost (ram*seconds) for each tool
   const weakenCost = weaken_ram * ns.formulas.hacking.weakenTime(server, player);
@@ -444,6 +441,9 @@ export function getRatesAtHackLevel(ns, server, player, hackLevel, ram_total) {
   const cappedGainRate = Math.min(theoreticalGainRate, hackProfit / ram_total);
   log(`At hack level ${hackLevel} and steal ${(hack_percent * 100).toPrecision(3)}%: Theoretical ${formatMoney(theoreticalGainRate)}, ` +
     `Limit: ${formatMoney(hackProfit / ram_total)}, Exp: ${expRate.toPrecision(3)}, Hack Chance: ${(ns.formulas.hacking.hackChance(server, player) * 100).toPrecision(3)}% (${server.hostname})`);
-  player.hacking = real_player_hack_skill; // Restore the real hacking skill if we changed it temporarily
+  // Restore values
+  player.hacking = real_player_hacking;
+  server.hackDifficulty = real_hackDifficulty;
+  server.moneyAvailable = real_moneyAvailable;
   return [theoreticalGainRate, cappedGainRate, expRate];
 }
