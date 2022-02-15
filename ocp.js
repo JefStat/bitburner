@@ -325,7 +325,7 @@ function analyzeSnapshot(snapshot, currentTarget, networkStats, incrementalHackT
 }
 
 // Helpers to get slices of info / cumulative stats across all rooted servers
-function getNetworkStats() {
+export function getNetworkStats() {
   const listOfServersFreeRam = rootedServers.map(s => s.ramAvailable()).filter(ram => ram > 1.6); // Servers that can't run a script don't count
   const totalMaxRam = rootedServers.map(s => s.totalRam()).reduce((a, b) => a + b, 0);
   const totalFreeRam = listOfServersFreeRam.reduce((a, b) => a + b, 0);
@@ -337,9 +337,43 @@ function getNetworkStats() {
   };
 }
 
+// "performance snapshot" (Ram required for the cycle) to compare against optimal, or another snapshot
+export function getPerformanceSnapshot(currentTarget, networkStats) {
+  // The total RAM cost of running one weaken/hack/grow cycle to steal `currentTarget.percentageToSteal` of `currentTarget.money`
+  const weaken1Cost = currentTarget.getWeakenThreadsNeededAfterTheft() * weaken_ram;
+  const weaken2Cost = currentTarget.getWeakenThreadsNeededAfterGrowth() * weaken_ram;
+  const growCost = currentTarget.getGrowThreadsNeededAfterTheft() * grow_ram;
+  const hackCost = currentTarget.getHackThreadsNeeded() * hack_ram;
+  // Simulate how many times we could schedule this batch given current server ram availability
+  // (and hope that whatever executes the tasks in this batch is clever enough to slot them in as such)
+  const jobs = [weaken1Cost, weaken2Cost, growCost, hackCost].sort((a, b) => b - a); // Sort jobs largest to smallest
+  const simulatedRemainingRam = networkStats.listOfServersFreeRam.slice();
+  let maxScheduled = -1;
+  let canScheduleAnother = true;
+  while (canScheduleAnother && maxScheduled++ <= maxBatches) {
+    for (const job of jobs) {
+      // Find a free slot for this job, starting with the largest servers as the scheduler tends to do
+      const freeSlot = simulatedRemainingRam.sort((a, b) => b - a).findIndex(ram => ram >= job);
+      if (freeSlot === -1)
+        canScheduleAnother = false;
+      else
+        simulatedRemainingRam[freeSlot] -= job;
+    }
+  }
+  return {
+    percentageToSteal: currentTarget.actualPercentageToSteal(),
+    canBeScheduled: maxScheduled > 0,
+    // Given our timing delay, **approximately** how many cycles can we initiate before the first batch's first task fires?
+    // -1 fudge, this isn't an exact science
+    optimalPacedCycles: Math.min(maxBatches, Math.max(1, Math.floor(((currentTarget.timeToWeaken()) / cycleTimingDelay).toPrecision(14)) - 1)),
+    // Given RAM availability, how many cycles could we schedule across all hosts?
+    // -1 fudge. The executor isn't perfect
+    maxCompleteCycles: Math.max(maxScheduled - 1, 1)
+  };
+}
+
 const playerHackSkill = () => player.hacking;
 const getPlayerHackingGrowMulti = () => player.hacking_grow_mult;
-
 
 // initial potency of weaken threads before multipliers
 const weakenThreadPotency = 0.05;

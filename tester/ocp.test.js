@@ -1,6 +1,6 @@
 const ocp = require('../ocp');
-const { performScheduling, getRatesAtHackLevel } = require('../ocp');
-const { noodles, player} = require('./StaticValues');
+const { performScheduling, getRatesAtHackLevel, getNetworkStats } = require('../ocp');
+const { noodles, player } = require('./StaticValues');
 
 const mockNs = {
   getServer: () => noodles,
@@ -44,8 +44,30 @@ Array [
     expect(ocp.buildServerObject(mockNs, 'n00dles')).toMatchSnapshot();
   });
 
+  test('getNetworkStats', () => {
+    expect(ocp.getNetworkStats()).toMatchInlineSnapshot(`
+Object {
+  "listOfServersFreeRam": Array [],
+  "totalFreeRam": 0,
+  "totalMaxRam": 0,
+  "totalUsedRam": 0,
+}
+`);
+  });
+
+  test('getPerformanceSnapshot', () => {
+    expect(ocp.getPerformanceSnapshot(ocp.buildServerObject(mockNs, 'n00dles'), ocp.getNetworkStats())).toMatchInlineSnapshot(`
+Object {
+  "canBeScheduled": false,
+  "maxCompleteCycles": 1,
+  "optimalPacedCycles": 1,
+  "percentageToSteal": 0,
+}
+`);
+  });
+
   test('optimizePerformanceMetrics', () => {
-    expect(ocp.optimizePerformanceMetrics()).toMatchInlineSnapshot();
+    expect(ocp.optimizePerformanceMetrics(ocp.buildServerObject(mockNs, 'n00dles'))).toMatchInlineSnapshot();
   });
 
   test('performScheduling', () => {
