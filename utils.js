@@ -72,6 +72,6 @@ export function getHackList(forceRefresh) {
 }
 
 export function ramUsage(ns) {
-	const serversWithRam = list_servers(ns).filter(s => ns.hasRootAccess(s) && ns.getServerMaxRam(s) > 1);
+	const serversWithRam = list_servers(ns).filter(s => ns.hasRootAccess(s) && ns.getServerMaxRam(s) >= 1.6);
 	return serversWithRam.map(o => ns.getServerUsedRam(o) / ns.getServerMaxRam(o)).reduce((a, b) => a + b, 0) / serversWithRam.length;
 }
