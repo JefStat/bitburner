@@ -1,0 +1,10 @@
+RUNTIME ERROR
+ensureRoot.js@home
+Args: ["phantasy"]
+
+Cannot read properties of undefined (reading 'backdoorInstalled')
+stack:
+TypeError: Cannot read properties of undefined (reading 'backdoorInstalled')
+at ensureBackdoor (ensureRoot.js:23:21)
+at Module.main (ensureRoot.js:11:32)
+at executeJSScript (https://danielyxie.github.io/bitburner/main.bundle.js:19:89670)

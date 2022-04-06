@@ -4,9 +4,16 @@ let gang = {};
 let members = [];
 let tasks = [];
 let maxOtherGangPower;
+let chanceVsOtherGang;
 let warTracker;
 let isEarlyGang = true;
-
+let needMoreMembers = true;
+const memberNames = [
+  'Teal', 'Fawn', 'TFT',
+  'Turduck\'n', 'Fender', 'Just Moe',
+  'Mixer', 'Hip', 'Brownstone',
+  'Sal', 'Right Hand', 'Left Shark'
+];
 /** @param {NS} pns **/
 export async function main(pns) {
   ns = pns;
@@ -35,9 +42,18 @@ export async function main(pns) {
   while (true) {
     gang = ns.gang.getGangInformation();
     const og = ns.gang.getOtherGangInformation();
-    maxOtherGangPower = Math.max(...Object.entries(og).map(([k, s]) => (k === gang.faction ? 0 : (s.territory <= 0 ? 0 : s.power))));
+    // seem like there are rounding errors on territory percent so always consider max of all gangs power
+    // maxOtherGangPower = Math.max(...Object.entries(og).map(([k, s]) => (k === gang.faction ? 0 : (s.territory <= 0 ? 0 : s.power))));
+    maxOtherGangPower = Math.max(...Object.entries(og).map(([k, s]) => (k === gang.faction ? 0 : s.power)));
+    const chanceVsOtherGangs = Object.entries(ns.gang.getOtherGangInformation())
+        .filter(([k, s]) => k !== gang.faction && s.territory > 0)
+        .map(([k, s]) => ns.gang.getChanceToWinClash(k));
+    chanceVsOtherGang = chanceVsOtherGangs.reduce((a, b) => a + b, 0) / chanceVsOtherGangs.length
     isEarlyGang = gang.respect < 3.2e6
-    if (ns.gang.canRecruitMember() && ns.gang.recruitMember('g' + (ns.gang.getMemberNames().length + 1))) {
+    needMoreMembers = gang.respect < 3125; // 15625;//1.6e6;
+    const curMembers = ns.gang.getMemberNames();
+    const newMemberNames = memberNames.filter(o => ! curMembers.includes(o));
+    if (ns.gang.canRecruitMember() && ns.gang.recruitMember(newMemberNames[0])) {
       ns.toast('Recruited', 'info', 10000);
     }
     getMembersStats();
@@ -46,6 +62,8 @@ export async function main(pns) {
     war();
     if (isWartime()) {
       setTasks(warTask);
+    } else if (needMoreMembers) {
+      setTasks(respectTask);
     } else {
       setTasks(moneyTask);
     }
@@ -55,6 +73,7 @@ export async function main(pns) {
 }
 
 function isWartime() {
+  // too powerful don't get more power
   if (maxOtherGangPower * 1.5 < gang.power) {
     warTracker.nextTick = Date.now();
     return false;
@@ -66,8 +85,8 @@ function isWartime() {
   if (warTracker.prevPower !== gang.power) {
     warTracker.prevPower = gang.power;
     warTracker.lastPowerChange = Date.now();
-    warTracker.nextTick = warTracker.lastPowerChange + (isBonusTime ? 2 : 20) * 1000;
-    ns.print(`PowerTick ${new Date().toLocaleTimeString()} next tick at ${new Date(warTracker.nextTick).toLocaleTimeString()}`);
+    warTracker.nextTick = warTracker.lastPowerChange + (isBonusTime ? 1.6 : 20) * 1000;
+    ns.print(`PowerTick ${new Date().toLocaleTimeString()} next tick ${new Date(warTracker.nextTick).toLocaleTimeString()} clash ${(chanceVsOtherGang * 100).toPrecision(2)}%`);
   }
   if (warTracker.nextTick === -1) {
     ns.print(`waiting for tick`);
@@ -84,7 +103,7 @@ function isWartime() {
   }
   let timeTillTick = warTracker.nextTick - Date.now();
   // if before war tick and until just past the tick. Power tick will update nextTick to stop war time
-  if (-2000 < timeTillTick && timeTillTick < 500) {
+  if (-2000 < timeTillTick && timeTillTick < 300) {
     //WarTime!
     ns.print(`Wartime remaining ${timeTillTick}`);
     return true;
@@ -94,13 +113,14 @@ function isWartime() {
 }
 
 function war() {
-  const strongerGangs = maxOtherGangPower < gang.power;
-  if (gang.territoryWarfareEngaged !== strongerGangs) {
-    ns.print(`Changing warfare to ${strongerGangs}`);
-    ns.toast(`Changing warfare to ${strongerGangs}`, strongerGangs ? 'info' : 'warning', 30000);
+  // if gang power is at max try to continue war for more territory
+  const enableWar = (chanceVsOtherGang > .6) || (maxOtherGangPower * 1.5 <= gang.power);
+  if (gang.territoryWarfareEngaged !== enableWar) {
+    ns.print(`Changing warfare to ${enableWar}`);
+    ns.toast(`Changing warfare to ${enableWar}`, enableWar ? 'warning' : 'info', 30000);
   }
   // ns.print(`maxOtherGangPower ${maxOtherGangPower} strongerGangs ${strongerGangs} gang.power ${gang.power} gang.territoryWarfareEngaged ${gang.territoryWarfareEngaged}`)
-  ns.gang.setTerritoryWarfare(strongerGangs);
+  ns.gang.setTerritoryWarfare(enableWar);
 }
 
 function equip() {
@@ -109,7 +129,7 @@ function equip() {
     for (const equipName of equipmentNames) {
       const stats = ns.gang.getEquipmentStats(equipName);
       if (ns.gang.getEquipmentCost(equipName) < ns.getServerMoneyAvailable('home') * .5) {
-        if (!isEarlyGang || (gang.isHacking && (stats.hack || stats.cha)) || (!gang.isHacking && (stats.str))) {
+        if (!isEarlyGang || (gang.isHacking && (stats.hack || stats.cha)) || (!gang.isHacking && (stats.str || stats.def || stats.cha))) {
           if (ns.gang.purchaseEquipment(member.name, equipName)) {
             ns.print(`Purchased ${equipName} for ${member.name}`);
           }
@@ -177,7 +197,7 @@ function setTasks(taskFunc) {
       }
     }
     // if nothing or unassigned train
-    if (bestTask === '' || bestTask === tasks[1].name) {
+    if (bestTask === '' || bestTask === 'Unassigned') {
       bestTask = gang.isHacking ? 'Train Hacking' : 'Train Combat';
     }
     if (bestTask !== 'Territory Warfare' && vigilantesNeeded !== 0 && members.length - i < vigilante) {
