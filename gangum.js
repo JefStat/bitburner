@@ -1,3 +1,4 @@
+import { boxTailSingleton } from "utils.js"
 let ns;
 
 let gang = {};
@@ -24,9 +25,10 @@ export async function main(pns) {
   ns.disableLog('gang.setTerritoryWarfare');
   ns.disableLog('gang.canRecruitMember');
   ns.clearLog();
-  ns.tail();
-  if (!ns.gang.inGang()) {
-    //ns.createGang('Slum Snakes')... todo
+  // ns.tail();
+  boxTailSingleton(ns, 'gangum', '\u270A', '500px');
+  if (!ns.fileExists('/tmp/ingang.txt')) {
+    ns.print('not in gang');
     return;
   }
   warTracker = {
@@ -52,7 +54,7 @@ export async function main(pns) {
     isEarlyGang = gang.respect < 3.2e6
     needMoreMembers = gang.respect < 3125; // 15625;//1.6e6;
     const curMembers = ns.gang.getMemberNames();
-    const newMemberNames = memberNames.filter(o => ! curMembers.includes(o));
+    const newMemberNames = memberNames.filter(o => !curMembers.includes(o));
     if (ns.gang.canRecruitMember() && ns.gang.recruitMember(newMemberNames[0])) {
       ns.toast('Recruited', 'info', 10000);
     }

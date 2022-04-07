@@ -1,4 +1,27 @@
 import { list_servers } from 'opened_servers.js';
+import { createSidebarItem, sidebar } from "/box/box.js"
+
+export const boxTailSingleton = (ns, title, icon, height) => {
+	var res = [];
+	sidebar.querySelectorAll('div.sbitem').forEach(sbitem => res.push({ sbitem, title: sbitem.querySelector('div.head > span').innerText }));
+	let box = res.find(o => o.title === title);
+	if (box) {
+		box = box.sbitem;
+	} else {
+		box = createSidebarItem(title, "<div/>", icon);
+	}
+	if (height) box.style.height = height;
+
+	const _print = ns.print;
+	ns.print = (m) => {
+		box.log(`<span>${m}</span>`);
+		_print(m);
+		box.logDiv = box.body.querySelector('div.log');
+		if (box.logDiv.childElementCount > 500) {
+			box.logDiv.replaceChildren(...Array.from(box.logDiv.children).slice(-100))
+		}
+	}
+}
 
 /** @param {NS} ns **/
 export async function runHackScript(ns, script, host, threads, target) {
@@ -72,6 +95,7 @@ export function getHackList(forceRefresh) {
 }
 
 export function ramUsage(ns) {
-	const serversWithRam = list_servers(ns).filter(s => ns.hasRootAccess(s) && ns.getServerMaxRam(s) >= 1.6);
+	const serversWithRam = ns.getPurchasedServers().concat(
+		list_servers(ns).filter(s => ns.hasRootAccess(s) && ns.getServerMaxRam(s) > 1));
 	return serversWithRam.map(o => ns.getServerUsedRam(o) / ns.getServerMaxRam(o)).reduce((a, b) => a + b, 0) / serversWithRam.length;
 }

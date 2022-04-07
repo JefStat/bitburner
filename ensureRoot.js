@@ -1,61 +1,74 @@
-const locks = {};
-
+import { list_servers } from 'opened_servers.js';
+import { recursiveScan } from 'find_server.js';
 /** @param {NS} ns **/
 export async function main(ns) {
-    const args = ns.flags([["host", '']]);
-    const host = args.host || args._[0];
-    if (locks[host]) return;
-    locks[host] = 1;
-    const server = ns.getServer(host);
-    server.hasAdminRights = ensureRootAccess(ns, host);
-    server.backdoorInstalled = ensureBackdoor(ns, host);
-    const fp = `/tmp/${host.replaceAll(/\./g, '')}.txt`;
-    await ns.write(fp, JSON.stringify(server, null, 2), "w");
-    delete locks[host];
-}
-
-export function ensureBackdoor(ns, host, server) {
-    ns.disableLog('getServerRequiredHackingLevel');
-    ns.disableLog('getServer');
+    ns.disableLog('scan');
     ns.disableLog('getHackingLevel');
     ns.disableLog('installBackdoor');
-    if (ns.getServerRequiredHackingLevel(host) < ns.getHackingLevel()) {
+    ns.disableLog('hasRootAccess');
+    ns.disableLog('getServerNumPortsRequired');
+    ns.disableLog('fileExists');
+    ns.disableLog('sleep');
+    ns.clearLog();
+    ns.tail();
+    let hosts = list_servers(ns).filter(o => o.indexOf('pserv') === -1);
+    do {
+        let servers = [];
+        for (const host of hosts) {
+            const fp = `/tmp/${host.replaceAll(/[\.\s]*/g, '_')}.txt`;
+            const server = JSON.parse(ns.read(fp));
+            server.hasAdminRights = server.hasAdminRights || ensureRootAccess(ns, server);
+            server.backdoorInstalled = server.backdoorInstalled || (await ensureBackdoor(ns, server));
+            //ns.print(`${server.hostname} ${server.hasAdminRights} && ${server.backdoorInstalled}`);
+            await ns.write(fp, JSON.stringify(server, null, 2), "w");
+            servers.push(server);
+        }
+        hosts = servers.filter((s) => !(s.hasAdminRights && s.backdoorInstalled))
+            .map(o => o.hostname);
+        ns.print('Hosts to backdoor ' + hosts.length);
+        await ns.sleep(5000);
+    } while (hosts.length > 0);
+}
+
+async function ensureBackdoor(ns, server) {
+    if (server.requiredHackingSkill <= ns.getHackingLevel()) {
         if (!server.backdoorInstalled) {
-            ns.installBackdoor();
-            ns.tprint("backdoor installed " + host);
+            ns.connect('home');
+            let route = [];
+            recursiveScan(ns, '', 'home', server.hostname, route);
+            for (const r of route) {
+                ns.connect(r);
+            }
+            await ns.installBackdoor();
+            ns.tprint("backdoor installed " + server.hostname);
         }
         return true;
     }
     return false;
 }
 
-export function ensureRootAccess(ns, host) {
-    ns.disableLog('disableLog');
-    ns.disableLog('hasRootAccess');
-    ns.disableLog('getServerNumPortsRequired');
-    ns.disableLog('fileExists');
-    if (host === "home" || ns.hasRootAccess(host)) return true;
-    let portsReq = ns.getServerNumPortsRequired(host);
+function ensureRootAccess(ns, server) {
+    if (server.hostname === "home" || server.purchasedByPlayer || server.hasAdminRights) return true;
+    let portsReq = server.numOpenPortsRequired;
     let maxPorts = countPorts(ns);
-    // ns.tprint("need to root " + host + " with " + portsReq + " ports required " + maxPorts + " can be opened");
     if (portsReq <= maxPorts) {
         if (ns.fileExists("BruteSSH.exe", "home")) {
-            ns.brutessh(host);
+            ns.brutessh(server.hostname);
         }
         if (ns.fileExists("HTTPWorm.exe", "home")) {
-            ns.httpworm(host);
+            ns.httpworm(server.hostname);
         }
         if (ns.fileExists("FTPCrack.exe", "home")) {
-            ns.ftpcrack(host);
+            ns.ftpcrack(server.hostname);
         }
         if (ns.fileExists("relaySMTP.exe", "home")) {
-            ns.relaysmtp(host);
+            ns.relaysmtp(server.hostname);
         }
         if (ns.fileExists("sqlInject.exe", "home")) {
-            ns.sqlinject(host);
+            ns.sqlinject(server.hostname);
         }
-        ns.nuke(host);
-        ns.tprint("nuked " + host);
+        ns.nuke(server.hostname);
+        ns.tprint("nuked " + server.hostname);
         return true;
     } else {
         return false;

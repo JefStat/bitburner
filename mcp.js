@@ -33,10 +33,10 @@ export async function main(pns) {
 	await run();
 }
 async function updateServerLists() {
-	const openedServers = (await list_servers(ns)).filter(s => ns.hasRootAccess(s))
+	const openedServers = list_servers(ns).filter(s => ns.hasRootAccess(s))
 	serversForExecution = ['home'].concat(ns.getPurchasedServers()).concat(openedServers);
 	const beforeHackStatuslength = hackStatus.length;
-	const serversToHack = (await list_servers(ns)).filter(s => ns.hasRootAccess(s)
+	const serversToHack = list_servers(ns).filter(s => ns.hasRootAccess(s)
 		&& ns.getServerMaxMoney(s) > 0
 		&& ns.getServerRequiredHackingLevel(s) <= ns.getHackingLevel());
 	hackStatus = [];
@@ -178,7 +178,9 @@ function getHostAndThreads(scriptRam) {
 	const host = serversForExecution.find((host) => {
 		let maxRam = ns.getServerMaxRam(host);
 		// reserve some ram for other scripts
-		if (host === 'home' && maxRam >= 64) {
+		if (host === 'home' && maxRam >= 128) {
+			maxRam = maxRam - 48;
+		} else if (host === 'home' && maxRam >= 64) {
 			maxRam = maxRam - 32;
 		} else if (host === 'home' && maxRam === 32) {
 			maxRam = maxRam - 16;
