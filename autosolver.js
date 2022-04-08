@@ -1,7 +1,9 @@
 import { list_servers } from "opened_servers.js";
+import { boxTailSingleton } from 'utils.js';
 
 /** @param {NS} ns **/
 export function main(ns) {
+    boxTailSingleton(ns, 'autosolver', '🔎', '200px');
     const contracts = list_servers(ns).map((server) => {
         const onServer = ns.ls(server, ".cct").map((contract) => {
             const type = ns.codingcontract.getContractType(contract, server);
@@ -11,7 +13,7 @@ export function main(ns) {
         });
         return onServer;
     }).filter(o => o.length);
-    ns.tprint(`Found ${contracts.length} contracts`);
+    ns.print(`Found ${contracts.length} contracts`);
     contracts.forEach((contract) => ns.tprint(contract));
 }
 
@@ -68,7 +70,7 @@ function solve(type, data, server, contract, ns) {
             break;
         default:
             solution = null;
-            ns.tprint(type + ' No solution implemented');
+            ns.print(type + ' No solution implemented');
             break;
     }
     return (solution !== null) ? ns.codingcontract.attempt(solution, contract, server, { returnReward: true }) : null;

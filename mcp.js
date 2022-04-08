@@ -1,4 +1,5 @@
 import { list_servers } from 'opened_servers.js';
+import { boxTailSingleton } from 'utils.js';
 let ns;
 const weaken_script = "weaken.js";
 const grow_script = "grow.js";
@@ -9,24 +10,11 @@ let hackStatus = [];
 /** @param {NS} pns **/
 export async function main(pns) {
 	ns = pns;
-	ns.disableLog('disableLog');
-	ns.disableLog('sleep');
-	ns.disableLog('scan');
-	ns.disableLog('getScriptRam');
-	ns.disableLog('getServerMaxRam');
-	ns.disableLog('getServerUsedRam');
-	ns.disableLog('getServerSecurityLevel');
-	ns.disableLog('getServerMinSecurityLevel');
-	ns.disableLog('getServerMaxMoney');
-	ns.disableLog('getServerMoneyAvailable');
-	ns.disableLog('hasRootAccess');
-	ns.disableLog('hackAnalyze');
-	ns.disableLog('getPurchasedServers');
-	ns.disableLog('getHackingLevel');
-	ns.disableLog('getServerRequiredHackingLevel');
-	ns.disableLog('getServerGrowth');
+	ns.disableLog('ALL');
+	ns.enableLog('exec')
+	ns.clearLog();
 	ns.tail();
-	// ns.disableLog('ALL');
+	boxTailSingleton(ns, 'mcp', '🥾', '200px');
 	weaken_scriptRam = ns.getScriptRam(weaken_script, "home");
 	grow_scriptRam = ns.getScriptRam(grow_script, "home");
 	hack_scriptRam = ns.getScriptRam(hack_script, "home");

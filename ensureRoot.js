@@ -1,5 +1,16 @@
 import { list_servers } from 'opened_servers.js';
 import { recursiveScan } from 'find_server.js';
+import { boxTailSingleton } from 'utils.js';
+
+function maxHackLevel(hacking_grow_mult) {
+    switch (hacking_grow_mult) {
+        case hacking_grow_mult < 2:
+            return 250;
+        default:
+            return 25000;
+    }
+}
+
 /** @param {NS} ns **/
 export async function main(ns) {
     ns.disableLog('scan');
@@ -10,20 +21,28 @@ export async function main(ns) {
     ns.disableLog('fileExists');
     ns.disableLog('sleep');
     ns.clearLog();
-    ns.tail();
-    let hosts = list_servers(ns).filter(o => o.indexOf('pserv') === -1);
+    // ns.tail();
+    const player = JSON.parse(ns.read('/tmp/player.txt'));
+    const maxHack = maxHackLevel(player.hacking_grow_mult);
+    boxTailSingleton(ns, 'ensureroot', '🗝', '200px');
+    let hosts = list_servers(ns).filter(o => o.indexOf('pserv') === -1 && o !== 'darkweb');
     do {
         let servers = [];
         for (const host of hosts) {
             const fp = `/tmp/${host.replaceAll(/[\.\s]*/g, '_')}.txt`;
-            const server = JSON.parse(ns.read(fp));
-            server.hasAdminRights = server.hasAdminRights || ensureRootAccess(ns, server);
-            server.backdoorInstalled = server.backdoorInstalled || (await ensureBackdoor(ns, server));
-            //ns.print(`${server.hostname} ${server.hasAdminRights} && ${server.backdoorInstalled}`);
-            await ns.write(fp, JSON.stringify(server, null, 2), "w");
-            servers.push(server);
+            try {
+                const server = JSON.parse(ns.read(fp));
+                server.hasAdminRights = server.hasAdminRights || ensureRootAccess(ns, server);
+                server.backdoorInstalled = server.backdoorInstalled || (await ensureBackdoor(ns, server));
+                //ns.print(`${server.hostname} ${server.hasAdminRights} && ${server.backdoorInstalled}`);
+                await ns.write(fp, JSON.stringify(server, null, 2), "w");
+                servers.push(server);
+            } catch (e) {
+                ns.print(`${host} BAD JSON ${e.message}`);
+            }
         }
-        hosts = servers.filter((s) => !(s.hasAdminRights && s.backdoorInstalled))
+        hosts = servers
+            .filter((s) => !(s.hasAdminRights && s.backdoorInstalled) && s.requiredHackingSkill <= maxHack)
             .map(o => o.hostname);
         ns.print('Hosts to backdoor ' + hosts.length);
         await ns.sleep(5000);
@@ -41,6 +60,7 @@ async function ensureBackdoor(ns, server) {
             }
             await ns.installBackdoor();
             ns.tprint("backdoor installed " + server.hostname);
+            ns.connect('home');
         }
         return true;
     }

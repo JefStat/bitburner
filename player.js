@@ -14,7 +14,7 @@ export async function main(pns) {
     ns.enableLog('upgradeHomeRam');
     ns.tail();
     boxTailSingleton(ns, 'player', '⛹', '200px');
-
+    let lastSolverRun = Date.now();
     let getKarma = () => ns.heart.break() > -54000;
     while (true) {
         await ns.sleep(100);
@@ -33,10 +33,13 @@ export async function main(pns) {
             ns.print(`Waiting to join ${factions.Aevum}`);
         }
 
-        if (ns.getServerMaxRam('home') < 256 && player.money > ns.getUpgradeHomeRamCost()) {
+        if (ns.getServerMaxRam('home') < 512 && player.money > ns.getUpgradeHomeRamCost()) {
             ns.upgradeHomeRam();
         }
-
+        if (ns.getServerMaxRam('home') >= 128 && (Date.now() - lastSolverRun > 5 * 60 * 1000)) {
+            if (ns.exec('autosolver.js', 'home') > 0)
+                lastSolverRun = Date.now();
+        }
         let invites = ns.checkFactionInvitations();
         while (invites.length > 0) {
             ns.joinFaction(invites[0]);
@@ -70,7 +73,7 @@ export async function main(pns) {
         for (const crime of crimes) {
             const crimeStats = ns.getCrimeStats(crime);
             const chance = ns.getCrimeChance(crime);
-            const nextRate = chance * (getKarma ? crimeStats.karma : crimeStats.money) / crimeStats.time;
+            const nextRate = chance * (getKarma ? crimeStats.karma : crimeStats.money) / crimeStats.time * 1000;
             // ns.print(nextRate.toPrecision(2));
             if (chance > .5 && nextRate > doThisCrimeRate) {
                 doThisCrimeRate = nextRate;

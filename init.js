@@ -18,7 +18,7 @@ export async function main(pns) {
 	if (ns.gang.inGang()) {
 		await ns.write('/tmp/ingang.txt', 'true', 'w');
 	}
-
+	await ns.write('/tmp/player.txt', JSON.stringify(ns.getPlayer(), null, 2), "w");
 	const multis = JSON.stringify(ns.getBitNodeMultipliers(), null, 2);
 	const fp = `/tmp/getBitNodeMultipliers.txt`;
 	await ns.write(fp, multis, 'w');

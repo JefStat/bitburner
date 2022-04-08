@@ -31,7 +31,6 @@ export async function main(ns) {
         if (!ns.fileExists("BruteSSH.exe") && player.money > 500000) {
             if (ns.purchaseProgram("BruteSSH.exe"))
                 ns.print('purchased BruteSSH');
-
         }
         if (!ns.fileExists("FTPCrack.exe") && player.money > 1500000) {
             if (ns.purchaseProgram("FTPCrack.exe"))
