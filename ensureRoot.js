@@ -2,13 +2,14 @@ import { list_servers } from 'opened_servers.js';
 import { recursiveScan } from 'find_server.js';
 import { boxTailSingleton } from 'utils.js';
 
-function maxHackLevel(hacking_grow_mult) {
-    switch (hacking_grow_mult) {
-        case hacking_grow_mult < 2:
-            return 250;
-        default:
-            return 25000;
-    }
+function maxHackLevel(hackingMultiples) {
+    if (hackingMultiples < 2)
+        return 250;
+    else if (hackingMultiples < 5)
+        return 600;
+    else if (hackingMultiples < 8)
+        return 800;
+    return 25000;
 }
 
 /** @param {NS} ns **/
@@ -23,28 +24,34 @@ export async function main(ns) {
     ns.clearLog();
     // ns.tail();
     const player = JSON.parse(ns.read('/tmp/player.txt'));
-    const maxHack = maxHackLevel(player.hacking_grow_mult);
+    const bitNode = JSON.parse(ns.read(`/tmp/getBitNodeMultipliers.txt`));
+    const mult = bitNode.HackingLevelMultiplier * player.hacking_mult + bitNode.HackExpGain * player.hacking_exp_mult;
+    const maxHack = maxHackLevel(mult);
     boxTailSingleton(ns, 'ensureroot', '🗝', '200px');
+    ns.print(`mul ${mult}, max hack ${maxHack}`);
     let hosts = list_servers(ns).filter(o => o.indexOf('pserv') === -1 && o !== 'darkweb');
     do {
         let servers = [];
         for (const host of hosts) {
-            const fp = `/tmp/${host.replaceAll(/[\.\s]*/g, '_')}.txt`;
+            const fp = `/tmp/${host.replaceAll(/[\.\s]/g, '_')}.txt`;
+            const data = ns.read(fp);
+            let server;
             try {
-                const server = JSON.parse(ns.read(fp));
-                server.hasAdminRights = server.hasAdminRights || ensureRootAccess(ns, server);
-                server.backdoorInstalled = server.backdoorInstalled || (await ensureBackdoor(ns, server));
-                //ns.print(`${server.hostname} ${server.hasAdminRights} && ${server.backdoorInstalled}`);
-                await ns.write(fp, JSON.stringify(server, null, 2), "w");
-                servers.push(server);
+                server = JSON.parse(data);
             } catch (e) {
-                ns.print(`${host} BAD JSON ${e.message}`);
+                ns.print(`${fp} BAD JSON ${e.message} ${data}`);
+                continue;
             }
+            server.hasAdminRights = server.hasAdminRights || ensureRootAccess(ns, server);
+            server.backdoorInstalled = server.backdoorInstalled || (await ensureBackdoor(ns, server));
+            //ns.print(`${server.hostname} ${server.hasAdminRights} && ${server.backdoorInstalled}`);
+            await ns.write(fp, JSON.stringify(server, null, 2), "w");
+            servers.push(server);
         }
         hosts = servers
             .filter((s) => !(s.hasAdminRights && s.backdoorInstalled) && s.requiredHackingSkill <= maxHack)
             .map(o => o.hostname);
-        ns.print('Hosts to backdoor ' + hosts.length);
+        ns.print('Hosts to backdoor ' + JSON.stringify(hosts));
         await ns.sleep(5000);
     } while (hosts.length > 0);
 }
@@ -56,10 +63,14 @@ async function ensureBackdoor(ns, server) {
             let route = [];
             recursiveScan(ns, '', 'home', server.hostname, route);
             for (const r of route) {
-                ns.connect(r);
+                if (!ns.connect(r)) {
+                    ns.print(`Failed to connect to ${r}`);
+                    return false;
+                }
             }
+            ns.print("backdooring " + server.hostname);
             await ns.installBackdoor();
-            ns.tprint("backdoor installed " + server.hostname);
+            ns.print("backdoor installed " + server.hostname);
             ns.connect('home');
         }
         return true;
@@ -88,7 +99,7 @@ function ensureRootAccess(ns, server) {
             ns.sqlinject(server.hostname);
         }
         ns.nuke(server.hostname);
-        ns.tprint("nuked " + server.hostname);
+        ns.print("nuked " + server.hostname);
         return true;
     } else {
         return false;

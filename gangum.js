@@ -36,7 +36,7 @@ export async function main(pns) {
     lastPowerChange: Date.now(),
     nextTick: -1
   };
-  const moneyTask = ns.formulas.gang.moneyGain;
+  const moneyTask = (g, m, t) => isEarlyGang && m.str < 10000 ? ns.formulas.gang.moneyGain(g, m, t) : (t.name === 'Traffick Illegal Arms' ? 1 : 0);
   const respectTask = ns.formulas.gang.respectGain;
   const wantedTask = (g, m, t) => -1 * ns.formulas.gang.wantedLevelGain(g, m, t);
   const warTask = (g, m, t) => t.name === 'Territory Warfare' ? 100 : 0;
