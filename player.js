@@ -10,12 +10,12 @@ export function getBestCrime(ns, getKarma) {
     for (const crime of crimes) {
         const crimeStats = ns.getCrimeStats(crime);
         const chance = ns.getCrimeChance(crime);
-        const nextRate = chance * (getKarma() ? crimeStats.karma : crimeStats.money) / crimeStats.time * 1000;
+        const nextRate = chance * (getKarma ? crimeStats.karma : crimeStats.money) / crimeStats.time * 1000;
         // ns.print(nextRate.toPrecision(2));
         if (chance > .5 && nextRate > crimeRate) {
             crimeRate = nextRate;
             doThisCrime = crime;
-            //ns.print(`next crime ${doThisCrime} @ ${(getKarma() ? doThisCrimeRate.toPrecision(2) : ns.nFormat(doThisCrimeRate, '0.0'))} ${(getKarma ? 'karma' : '$')}/s`);
+            //ns.print(`next crime ${doThisCrime} @ ${(getKarma ? doThisCrimeRate.toPrecision(2) : ns.nFormat(doThisCrimeRate, '0.0'))} ${(getKarma ? 'karma' : '$')}/s`);
         }
     }
     return {doThisCrime, crimeRate};
@@ -94,7 +94,7 @@ export async function main(pns) {
         if (player.isWorking) {
             continue;
         }
-        let {doThisCrime, crimeRate} = getBestCrime(ns, getKarma);
+        let {doThisCrime, crimeRate} = getBestCrime(ns, getKarma());
         ns.commitCrime(doThisCrime);
         ns.print(`Attempting to commit ${doThisCrime}... @ ${(getKarma() ? crimeRate.toPrecision(2) : ns.nFormat(crimeRate, '0.0'))} ${(getKarma() ? 'karma' : '$')}/s`);
     }
