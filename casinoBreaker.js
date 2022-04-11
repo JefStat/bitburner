@@ -13,7 +13,7 @@ async function getFlipResult(ns) {
 
 export async function main(ns) {
     ns.disableLog('sleep');
-
+    ns.tail();
     ns.travelToCity("Aevum");
     ns.goToLocation("Iker Molina Casino");
 

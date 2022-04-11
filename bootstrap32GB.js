@@ -19,13 +19,14 @@ export async function main(ns) {
         await ns.sleep(100);
         const player = ns.getPlayer();
 
-        if (ns.getServerMaxRam('home') < 512 && player.money > ns.getUpgradeHomeRamCost()) {
+        if (ns.getServerMaxRam('home') <= 512 && player.money > ns.getUpgradeHomeRamCost()) {
             ns.upgradeHomeRam();
         }
 
         if (casinoBreakerPid === -1 && ns.getServerMaxRam('home') > 512) {
             //All done time to init
-            ns.exec('init.js');
+            ns.exec('init.js', 'home');
+            return;
         }
 
         if (casinoBreakerPid !== 0) {
@@ -35,6 +36,9 @@ export async function main(ns) {
 
         if (player.money > 200000 && casinoBreakerPid === 0) {
             casinoBreakerPid = ns.exec('casinoBreaker.js', 'home');
+            if (casinoBreakerPid === 0)
+                casinoBreakerPid = ns.getRunningScript('casinoBreaker.js', 'home').pid;
+            continue;
         }
 
         if (player.isWorking && casinoBreakerPid === 0) {

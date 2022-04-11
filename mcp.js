@@ -5,7 +5,8 @@ let ns;
 const weaken_script = "weaken.js";
 const grow_script = "grow.js";
 const hack_script = "hack.js";
-let weaken_scriptRam, grow_scriptRam, hack_scriptRam = 1.7;
+let hack_scriptRam = 1.7;
+let grow_scriptRam, weaken_scriptRam = 1.75;
 let serversForExecution = [];
 let hackStatus = [];
 /** @param {NS} pns **/
@@ -24,8 +25,7 @@ export async function main(pns) {
 let hackPercent = .5;
 let bonusServers = 0;
 async function updateServerLists() {
-	const openedServers = list_servers(ns).filter(s => ns.hasRootAccess(s))
-	serversForExecution = ['home'].concat(ns.getPurchasedServers()).concat(openedServers);
+	serversForExecution = ['home'].concat(list_servers(ns).filter(s => ns.hasRootAccess(s)));
 	const beforeHackStatusLength = hackStatus.length;
 	const serversToHack = list_servers(ns).filter(s => ns.hasRootAccess(s)
 		&& ns.getServerMaxMoney(s) > 0
@@ -51,17 +51,19 @@ async function updateServerLists() {
 		hackStatus.push({ server: server });
 	}
 	const lowRamUse = ramUsage(ns) < .5;
+	const oldHackPercent = hackPercent;
+	const oldBonusServers = bonusServers;
 	if (lowRamUse) {
 		hackPercent = Math.min(hackPercent + .1, .95);
 		if (hackPercent === .95) {
 			bonusServers = Math.min(bonusServers + 1, skippedServer.length);
 			hackStatus.push(...skippedServer.slice(0, bonusServers));
 		}
-		ns.tprint(`BonusServers added ${bonusServers} Hack percent ${hackPercent}`);
 	} else {
 		bonusServers = Math.max(bonusServers - 1, 0);
 		if (bonusServers <= 0) hackPercent = Math.max(hackPercent - .1, .5);
 	}
+	if (oldHackPercent !== hackPercent || oldBonusServers !== bonusServers) ns.tprint(`BonusServers added ${bonusServers} Hack percent ${hackPercent}`);
 	// after aug install just start hacking on n00dles fist
 	if (hackStatus.length === 0) hackStatus.push({ server: 'n00dles' });
 	if (beforeHackStatusLength < hackStatus.length) ns.tprint(`Servers to hack ${hackStatus.length} ${hackStatus.map(o => o.server).join(',')}`);
@@ -136,7 +138,7 @@ async function runGrow(target, percentMoney, threads) {
 	const { host, threads_available } = getHostAndThreads(grow_scriptRam);
 	if (!host) return { time, threadsCommitted };
 	const growthFactor = 1 / (percentMoney || 0.0000001);
-	const threadsNeeded = Math.max(parseInt(ns.growthAnalyze(target, growthFactor, getCores(host)).toFixed(0)) - threads, 1);
+	const threadsNeeded = Math.max(Math.floor(ns.growthAnalyze(target, growthFactor, getCores(host))) - threads, 1);
 	let threadToUse = Math.min(threads_available, threadsNeeded);
 	if (!ns.fileExists(grow_script, host)) {
 		await ns.scp(grow_script, host);
@@ -150,7 +152,8 @@ async function runGrow(target, percentMoney, threads) {
 		// ns.print(`Grow ${host}[${threadToUse}] -> ${target}`);
 		threadsCommitted = threadToUse;
 	}
-	return { time, threadsCommitted };
+	const w = await runWeaken(target,ns.growthAnalyzeSecurity(threadsCommitted),0);
+	return { time:w.time, threadsCommitted: w.threadsCommitted + threadsCommitted };
 }
 
 async function runHack(target, threads) {
@@ -175,8 +178,10 @@ async function runHack(target, threads) {
 		threadsCommitted = threadToUse;
 	}
 
-	return { time, threadsCommitted };
+	const w = await runWeaken(target,ns.hackAnalyzeSecurity(threadsCommitted),0);
+	return { time:w.time, threadsCommitted: w.threadsCommitted + threadsCommitted };
 }
+
 function hasFormulas() {
 	return ns.fileExists('Formulas.exe');
 }
@@ -185,7 +190,7 @@ function getHostAndThreads(scriptRam) {
 		let maxRam = ns.getServerMaxRam(host);
 		// reserve some ram for other scripts
 		if (host === 'home') {
-			maxRam = Math.max(maxRam * .75, maxRam - 128);;
+			maxRam = Math.max(maxRam * .75, maxRam - 128);
 		}
 		const threads_available = Math.floor((maxRam - ns.getServerUsedRam(host)) / scriptRam);
 		return threads_available >= 1;
@@ -206,7 +211,7 @@ function getNextState(server, nextStateUpdateRequiredAt) {
 	const percentMoney = parseFloat((ns.getServerMoneyAvailable(server) / ns.getServerMaxMoney(server)).toFixed(2));
 	if (sec > 5) {
 		nextState = 'weaken';
-	} else if (percentMoney < 0.9) {
+	} else if (percentMoney < 0.95) {
 		nextState = 'grow';
 	} else {
 		nextState = 'hack';

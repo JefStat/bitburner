@@ -57,45 +57,8 @@ export function getHosts(ns, scriptRam) {
 	}
 	return hostServers;
 }
-
-let hackList = ['n00dles']
-let lastUpdate = Date.now();
-export function getHackList(forceRefresh) {
-	if (!forceRefresh && lastUpdate < Date.now() - 60 * 1000) {
-		return hackList;
-	}
-	const beforeHackList = hackStatus.length;
-	const serversToHack = list_servers(ns).filter(s => ns.hasRootAccess(s)
-		&& ns.getServerMaxMoney(s) > 0
-		&& ns.getServerRequiredHackingLevel(s) <= ns.getHackingLevel());
-	hackList = [];
-	const player = ns.getPlayer();
-	for (const server of serversToHack) {
-		const s = ns.getServer(server);
-		s.hackDifficulty = s.minDifficulty;
-		// check that hacks will succeed.
-		const hackChance = ns.formulas.hacking.hackChance(s, player);
-		if (hackChance < .9) {
-			//ns.print(`Hack chance to low ${s} ${(hackChance * 100).toFixed(2)}%`)
-			continue;
-		}
-		// waste of resources to do expensive ram costs on grow
-		if (s.serverGrowth < 40) {
-			//ns.print(`Growth is to low ${s} ${s.serverGrowth}%`)
-			continue;
-		}
-		// ns.exec('monitor.js', 'home', 1, server);
-		hackList.push({ server: server });
-	}
-	// after aug install just start hacking on n00dles
-	if (hackList.length === 0) hackStatus.push({ server: 'n00dles' });
-	if (beforeHackList < hackList.length) ns.tprint(`Servers to hack ${hackStatus.length} ${hackStatus.map(o => o.server).join(',')}`);
-	lastUpdate = Date.now();
-	return hackList;
-}
-
+/** @param {NS} ns **/
 export function ramUsage(ns) {
-	const serversWithRam = ns.getPurchasedServers().concat(
-		list_servers(ns).filter(s => ns.hasRootAccess(s) && ns.getServerMaxRam(s) > 1));
+	const serversWithRam = ['home'].concat(list_servers(ns).filter(s => ns.hasRootAccess(s) && ns.getServerMaxRam(s) > 1));
 	return serversWithRam.map(o => ns.getServerUsedRam(o) / ns.getServerMaxRam(o)).reduce((a, b) => a + b, 0) / serversWithRam.length;
 }

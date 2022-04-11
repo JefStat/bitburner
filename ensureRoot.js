@@ -4,7 +4,9 @@ import { boxTailSingleton } from 'utils.js';
 
 function maxHackLevel(hackingMultiples) {
     if (hackingMultiples < 2)
-        return 250;
+        return 220;
+    else if (hackingMultiples < 3)
+        return 350
     else if (hackingMultiples < 5)
         return 600;
     else if (hackingMultiples < 8)

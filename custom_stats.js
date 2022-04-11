@@ -26,9 +26,6 @@ export async function main(ns) {
 			const values = [];
 			const player = ns.getPlayer();
 
-			headers.push("Int");
-			values.push(((Math.pow(player.intelligence, 0.8) / 600) * 100).toFixed(2) + '%');
-
 			headers.push("Scripts");
 			values.push(ns.nFormat(ns.getScriptIncome()[0], "($0.00a)") + '/s');
 
@@ -41,14 +38,25 @@ export async function main(ns) {
 			headers.push("Ram Use");
 			values.push((ramUsage(ns) * 100).toFixed(1) + '%');
 
-			headers.push("Karma");
-			values.push(ns.heart.break().toFixed(0));
+			if (ns.heart.break() > -54000) {
+				headers.push("Karma");
+				values.push(ns.heart.break().toFixed(0));
+			}
 
-			headers.push("Kills");
-			values.push(player.numPeopleKilled.toFixed(0));
+			// if (ns.fileExists('/tmp/ingang.txt')) {
+			// 	const gangInfo = ns.getGangInformation();
+			// 	headers.push("Respect");
+			// 	values.push(ns.nFormat(gangInfo.respect, '0.00a'));
+			// 	headers.push("Penalty");
+			// 	values.push(ns.nFormat(gangInfo.wantedPenalty, '0.00%'));
+			// 	headers.push("Territory");
+			// 	values.push(ns.nFormat(gangInfo.territory, '0.00%'));
+			// }
 
-			headers.push("Share");
-			values.push(((ns.getSharePower() - 1) * 100).toFixed(2) + '%');
+			if (ns.getSharePower() > 1) {
+				headers.push("Share");
+				values.push(((ns.getSharePower() - 1) * 100).toFixed(2) + '%');
+			}
 
 			// Now drop it into the placeholder elements
 			hook0.innerText = headers.join("\n");
