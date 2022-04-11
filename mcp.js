@@ -1,5 +1,6 @@
 import { list_servers } from 'opened_servers.js';
-import { boxTailSingleton } from 'utils.js';
+import { boxTailSingleton, ramUsage } from 'utils.js';
+
 let ns;
 const weaken_script = "weaken.js";
 const grow_script = "grow.js";
@@ -20,14 +21,18 @@ export async function main(pns) {
 	hack_scriptRam = ns.getScriptRam(hack_script, "home");
 	await run();
 }
+let hackPercent = .5;
+let bonusServers = 0;
 async function updateServerLists() {
 	const openedServers = list_servers(ns).filter(s => ns.hasRootAccess(s))
 	serversForExecution = ['home'].concat(ns.getPurchasedServers()).concat(openedServers);
-	const beforeHackStatuslength = hackStatus.length;
+	const beforeHackStatusLength = hackStatus.length;
 	const serversToHack = list_servers(ns).filter(s => ns.hasRootAccess(s)
 		&& ns.getServerMaxMoney(s) > 0
-		&& ns.getServerRequiredHackingLevel(s) <= ns.getHackingLevel());
+		&& ns.getServerRequiredHackingLevel(s) <= ns.getHackingLevel() / 2);
+
 	hackStatus = [];
+	const skippedServer = []
 	const player = ns.getPlayer();
 	for (const server of serversToHack) {
 		const s = ns.getServer(server);
@@ -40,13 +45,26 @@ async function updateServerLists() {
 		}
 		if (s.serverGrowth < 40) {
 			//ns.print(`Growth is to low ${s} ${s.serverGrowth}%`)
+			skippedServer.push({ server: server });
 			continue;
 		}
 		hackStatus.push({ server: server });
 	}
-	// after aug install just start hacking on n00dles for the fist 5 mins
+	const lowRamUse = ramUsage(ns) < .5;
+	if (lowRamUse) {
+		hackPercent = Math.min(hackPercent + .1, .95);
+		if (hackPercent === .95) {
+			bonusServers = Math.min(bonusServers + 1, skippedServer.length);
+			hackStatus.push(...skippedServer.slice(0, bonusServers));
+		}
+		ns.tprint(`BonusServers added ${bonusServers} Hack percent ${hackPercent}`);
+	} else {
+		bonusServers = Math.max(bonusServers - 1, 0);
+		if (bonusServers <= 0) hackPercent = Math.max(hackPercent - .1, .5);
+	}
+	// after aug install just start hacking on n00dles fist
 	if (hackStatus.length === 0) hackStatus.push({ server: 'n00dles' });
-	if (beforeHackStatuslength < hackStatus.length) ns.tprint(`Servers to hack ${hackStatus.length} ${hackStatus.map(o => o.server).join(',')}`);
+	if (beforeHackStatusLength < hackStatus.length) ns.tprint(`Servers to hack ${hackStatus.length} ${hackStatus.map(o => o.server).join(',')}`);
 }
 
 async function run() {
@@ -140,7 +158,7 @@ async function runHack(target, threads) {
 	let threadsCommitted = 0;
 	const { host, threads_available } = getHostAndThreads(hack_scriptRam);
 	if (!host) return { time, threadsCommitted };
-	const threadsNeeded = Math.max(parseInt((.5 / ns.hackAnalyze(target)).toFixed(0)) - threads, 1);
+	const threadsNeeded = Math.max(parseInt((hackPercent / ns.hackAnalyze(target)).toFixed(0)) - threads, 1);
 	let threadToUse = Math.min(threads_available, threadsNeeded);
 	if (!ns.fileExists(hack_script, host)) {
 		await ns.scp(hack_script, host);
@@ -166,12 +184,8 @@ function getHostAndThreads(scriptRam) {
 	const host = serversForExecution.find((host) => {
 		let maxRam = ns.getServerMaxRam(host);
 		// reserve some ram for other scripts
-		if (host === 'home' && maxRam >= 128) {
-			maxRam = maxRam - 48;
-		} else if (host === 'home' && maxRam >= 64) {
-			maxRam = maxRam - 32;
-		} else if (host === 'home' && maxRam === 32) {
-			maxRam = maxRam - 16;
+		if (host === 'home') {
+			maxRam = Math.max(maxRam * .75, maxRam - 128);;
 		}
 		const threads_available = Math.floor((maxRam - ns.getServerUsedRam(host)) / scriptRam);
 		return threads_available >= 1;
@@ -179,17 +193,15 @@ function getHostAndThreads(scriptRam) {
 	if (!host) return { host: null, threads_available: 0 };
 	let maxRam = ns.getServerMaxRam(host);
 	// reserve some ram for other scripts
-	if (host === 'home' && maxRam >= 64) {
-		maxRam = maxRam - 32;
-	} else if (host === 'home' && maxRam === 32) {
-		maxRam = maxRam - 16;
+	if (host === 'home') {
+		maxRam = Math.max(maxRam * .75, maxRam - 128);
 	}
 	const threads_available = Math.floor((maxRam - ns.getServerUsedRam(host)) / scriptRam);
 	return { host, threads_available };
 }
 function getNextState(server, nextStateUpdateRequiredAt) {
 	if (nextStateUpdateRequiredAt > Date.now()) return null;
-	let nextState = 'weaken';
+	let nextState;
 	const sec = parseFloat((ns.getServerSecurityLevel(server) - ns.getServerMinSecurityLevel(server)).toFixed(2));
 	const percentMoney = parseFloat((ns.getServerMoneyAvailable(server) / ns.getServerMaxMoney(server)).toFixed(2));
 	if (sec > 5) {
