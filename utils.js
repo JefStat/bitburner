@@ -62,3 +62,21 @@ export function ramUsage(ns) {
 	const serversWithRam = ['home'].concat(list_servers(ns).filter(s => ns.hasRootAccess(s) && ns.getServerMaxRam(s) > 1));
 	return serversWithRam.map(o => ns.getServerUsedRam(o) / ns.getServerMaxRam(o)).reduce((a, b) => a + b, 0) / serversWithRam.length;
 }
+
+const weaken_script = "weaken.js";
+const grow_script = "grow.js";
+const hack_script = "hack.js";
+/** @param {NS} ns **/
+export async function copyHackingFiles(ns, server) {
+	if (server.hasAdminRights) {
+		if (!ns.fileExists(hack_script, server.hostname)) {
+			await ns.scp(hack_script, server.hostname);
+		}
+		if (!ns.fileExists(grow_script, server.hostname)) {
+			await ns.scp(grow_script, server.hostname);
+		}
+		if (!ns.fileExists(weaken_script, server.hostname)) {
+			await ns.scp(weaken_script, server.hostname);
+		}
+	}
+}

@@ -1,6 +1,6 @@
 import { list_servers } from 'opened_servers.js';
 import { recursiveScan } from 'find_server.js';
-import { boxTailSingleton } from 'utils.js';
+import { boxTailSingleton, copyHackingFiles } from 'utils.js';
 
 function maxHackLevel(hackingMultiples) {
     if (hackingMultiples < 2)
@@ -13,6 +13,7 @@ function maxHackLevel(hackingMultiples) {
         return 800;
     return 25000;
 }
+
 
 /** @param {NS} ns **/
 export async function main(ns) {
@@ -45,6 +46,7 @@ export async function main(ns) {
                 continue;
             }
             server.hasAdminRights = server.hasAdminRights || ensureRootAccess(ns, server);
+            await copyHackingFiles(ns, server);
             server.backdoorInstalled = server.backdoorInstalled || (await ensureBackdoor(ns, server));
             //ns.print(`${server.hostname} ${server.hasAdminRights} && ${server.backdoorInstalled}`);
             await ns.write(fp, JSON.stringify(server, null, 2), "w");

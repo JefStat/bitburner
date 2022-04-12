@@ -1,4 +1,3 @@
-import { hackFactor, growthFactor } from 'config.js';
 /** @param {NS} ns **/
 export async function main(ns) {
     const flags = ns.flags([
@@ -15,6 +14,7 @@ export async function main(ns) {
     ns.tail();
     ns.disableLog('ALL');
     const servers = flags._[0] ? [flags._[0]] : [];
+    // ns.tprint(JSON.stringify(servers));
     while (true) {
         ns.clearLog();
         for (var i = 0; i < servers.length; i++) {

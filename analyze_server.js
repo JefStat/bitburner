@@ -9,6 +9,8 @@ export async function main(ns) {
 		ns.tprint(`> run ${ns.getScriptName()} n00dles`);
 		return;
 	}
+	const s = ns.getServer(server);
+	const player = ns.getPlayer();
 	const maxRam = ns.getServerMaxRam(server);
 	const usedRam = ns.getServerUsedRam(server);
 	const money = ns.getServerMoneyAvailable(server);
@@ -22,8 +24,11 @@ ${server}:
     security   : ${minSec.toFixed(2)} / ${sec.toFixed(2)}
     growth     : ${ns.getServerGrowth(server)}
     hack time  : ${ns.tFormat(ns.getHackTime(server))}
+    hack time  : ${ns.tFormat(ns.formulas.hacking.hackTime(s, player))}
     grow time  : ${ns.tFormat(ns.getGrowTime(server))}
+    grow time  : ${ns.tFormat(ns.formulas.hacking.growTime(s, player))}
     weaken time: ${ns.tFormat(ns.getWeakenTime(server))}
+    weaken time: ${ns.tFormat(ns.formulas.hacking.weakenTime(s, player))}
     grow x2    : ${(ns.growthAnalyze(server, 2)).toFixed(2)} threads
     grow x3    : ${(ns.growthAnalyze(server, 3)).toFixed(2)} threads
     grow x4    : ${(ns.growthAnalyze(server, 4)).toFixed(2)} threads
@@ -35,5 +40,5 @@ ${server}:
 }
 
 export function autocomplete(data, args) {
-    return data.servers;
+	return data.servers;
 }

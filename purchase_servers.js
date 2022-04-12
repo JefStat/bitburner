@@ -1,4 +1,4 @@
-import { boxTailSingleton } from "utils.js"
+import { boxTailSingleton, copyHackingFiles } from "utils.js"
 
 /** @param {NS} ns **/
 export async function main(ns) {
@@ -68,10 +68,12 @@ export async function main(ns) {
             player = ns.getPlayer();
             purchaseTor(player);
             // Check if we have enough money to purchase a server
-            if (player.money > ns.getPurchasedServerCost(ram)) {
+            const cost = ns.getPurchasedServerCost(ram);
+            if (player.money > cost) {
                 const name = "pserv-" + i;
                 ns.purchaseServer(name, ram);
-                ns.print(`purchased server ${name}`)
+                await copyHackingFiles(ns, {hostname: name, hasAdminRights: true});
+                ns.print(`purchased server ${name} ${ns.nFormat(cost, '$0.0a')}`)
                 ++i;
             }
             await ns.sleep(3000);

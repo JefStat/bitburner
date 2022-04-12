@@ -1,6 +1,6 @@
 import * as asciichart from 'asciichart.js';
 import { ramUsage } from 'utils.js'
-//store here to be a bit more persisten to script restarts
+//store here to be a bit more persistent to script restarts
 const series = { 'ramUsage': new Array(53).fill(0) };
 /** @param {NS} ns **/
 export async function main(ns) {
