@@ -80,3 +80,9 @@ export async function copyHackingFiles(ns, server) {
 		}
 	}
 }
+export function tryGetBitNodeMultipliers(ns){
+	return JSON.parse(ns.read(`/tmp/getBitNodeMultipliers.txt`));
+}
+export function inGangStatic(ns) {
+	return ns.read(`/tmp/ingang.txt`);
+}

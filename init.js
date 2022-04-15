@@ -1,3 +1,5 @@
+import { initAugments } from "./augments";
+
 let ns;
 /** @param {NS} pns **/
 export async function main(pns) {
@@ -16,21 +18,25 @@ export async function main(pns) {
 		ns.gang.createGang('Slum Snakes');
 	}
 	if (ns.gang.inGang()) {
-		await ns.write('/tmp/ingang.txt', 'true', 'w');
+		await ns.write('/tmp/ingang.txt', ns.gang.getGangInformation().faction, 'w');
 	}
 	await ns.write('/tmp/player.txt', JSON.stringify(ns.getPlayer(), null, 2), "w");
 	const multis = JSON.stringify(ns.getBitNodeMultipliers(), null, 2);
 	const fp = `/tmp/getBitNodeMultipliers.txt`;
 	await ns.write(fp, multis, 'w');
 
+	ns.print('init augs details');
+	await initAugments(ns);
+
 	await writeServers('', 'home');
 	ns.exec('ensureRoot.js', 'home');
 
-	ns.print(multis);
+	// ns.print(multis);
 	ns.exec('purchase-servers.js', 'home');
-	ns.exec('player.js', 'home');
+	// ns.exec('player.js', 'home');
+	ns.exec('workForFaction.js', 'home');
 	if (ns.gang.inGang()) ns.exec('gangum.js', 'home');
-	ns.exec('mcp.js', 'home');
+	ns.exec('mcp_hgw.js', 'home');
 	ns.exec('custom-stats.js', 'home');
 	// ns.exec('charts.js', 'home');
 	// ns.exec('chart_ram.js', 'home');

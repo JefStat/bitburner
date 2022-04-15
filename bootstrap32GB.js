@@ -15,15 +15,20 @@ export async function main(ns) {
     ns.clearLog();
     ns.tail();
     let casinoBreakerPid = 0;
+    let ramUpgrade = 0;
     while (true) {
         await ns.sleep(100);
         const player = ns.getPlayer();
 
-        if (ns.getServerMaxRam('home') <= 512 && player.money > ns.getUpgradeHomeRamCost()) {
+        //need a min of 1030 for corporation apis
+        if (/*ns.getServerMaxRam('home') <= 1024*/ ramUpgrade < 6 && player.money > ns.getUpgradeHomeRamCost()) {
             ns.upgradeHomeRam();
+            //32 64 128 256 512  1024 2048
+            //0   1  2   3    4    5    6
+            ramUpgrade++;
         }
 
-        if (casinoBreakerPid === -1 && ns.getServerMaxRam('home') > 512) {
+        if (casinoBreakerPid === -1 && ramUpgrade >= 6 /*ns.getServerMaxRam('home') > 1024*/) {
             //All done time to init
             ns.exec('init.js', 'home');
             return;

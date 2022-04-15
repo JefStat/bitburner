@@ -4,10 +4,14 @@ import { boxTailSingleton, copyHackingFiles } from 'utils.js';
 
 function maxHackLevel(hackingMultiples) {
     if (hackingMultiples < 2)
-        return 220;
+        return 150;
     else if (hackingMultiples < 3)
+        return 250
+    else if (hackingMultiples < 4)
         return 350
     else if (hackingMultiples < 5)
+        return 450
+    else if (hackingMultiples < 6)
         return 600;
     else if (hackingMultiples < 8)
         return 800;
@@ -33,6 +37,7 @@ export async function main(ns) {
     boxTailSingleton(ns, 'ensureroot', '🗝', '200px');
     ns.print(`mul ${mult}, max hack ${maxHack}`);
     let hosts = list_servers(ns).filter(o => o.indexOf('pserv') === -1 && o !== 'darkweb');
+    let oldhostLength = hosts.length;
     do {
         let servers = [];
         for (const host of hosts) {
@@ -47,7 +52,9 @@ export async function main(ns) {
             }
             server.hasAdminRights = server.hasAdminRights || ensureRootAccess(ns, server);
             await copyHackingFiles(ns, server);
-            server.backdoorInstalled = server.backdoorInstalled || (await ensureBackdoor(ns, server));
+            if (server.hasAdminRights) {
+                server.backdoorInstalled = server.backdoorInstalled || (await ensureBackdoor(ns, server));
+            }
             //ns.print(`${server.hostname} ${server.hasAdminRights} && ${server.backdoorInstalled}`);
             await ns.write(fp, JSON.stringify(server, null, 2), "w");
             servers.push(server);
@@ -55,7 +62,10 @@ export async function main(ns) {
         hosts = servers
             .filter((s) => !(s.hasAdminRights && s.backdoorInstalled) && s.requiredHackingSkill <= maxHack)
             .map(o => o.hostname);
-        ns.print('Hosts to backdoor ' + JSON.stringify(hosts));
+
+        if (oldhostLength !== hosts.length)
+            ns.print('Hosts to backdoor ' + JSON.stringify(hosts));
+        oldhostLength = hosts.length;
         await ns.sleep(5000);
     } while (hosts.length > 0);
 }

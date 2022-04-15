@@ -1,4 +1,4 @@
-import { boxTailSingleton, copyHackingFiles } from "utils.js"
+import { boxTailSingleton, copyHackingFiles, tryGetBitNodeMultipliers } from "utils.js"
 
 /** @param {NS} ns **/
 export async function main(ns) {
@@ -17,7 +17,7 @@ export async function main(ns) {
     ns.disableLog('getPurchasedServerCost');
     ns.clearLog();
     //ns.tail();
-
+    const multis = tryGetBitNodeMultipliers(ns);
     boxTailSingleton(ns, 'purchase pc', '🖳', '100px');
     let player = ns.getPlayer();
     const bitNodeN = player.bitNodeN;
@@ -60,26 +60,27 @@ export async function main(ns) {
     if (bitNodeN === 2 && player.hacking < 100) {
         ns.print('Not buying servers in bitnode 2... yet');
     } else {
-        // const ram = 32768;
-        const ram = ns.getServer('home').maxRam / 2;
-        // const maxRam = 1048576;
+        // PurchasedServerMaxRam
+        const ram = Math.min(ns.getServer('home').maxRam / 2, 1048576 * multis.PurchasedServerMaxRam);
+        ns.print(ns.nFormat(ram, '0.0a'));
         let i = ns.getPurchasedServers().length;
         while (i < ns.getPurchasedServerLimit()) {
             player = ns.getPlayer();
             purchaseTor(player);
             // Check if we have enough money to purchase a server
             const cost = ns.getPurchasedServerCost(ram);
+            // ns.print(ns.nFormat(cost, '0.0a'));
             if (player.money > cost) {
                 const name = "pserv-" + i;
                 ns.purchaseServer(name, ram);
-                await copyHackingFiles(ns, {hostname: name, hasAdminRights: true});
+                await copyHackingFiles(ns, { hostname: name, hasAdminRights: true });
                 ns.print(`purchased server ${name} ${ns.nFormat(cost, '$0.0a')}`)
                 ++i;
             }
             await ns.sleep(3000);
         }
     }
-    const multis = JSON.parse(ns.read('/tmp/getBitNodeMultipliers.txt'));
+
     if (multis.HacknetNodeMoney < .8) {
         ns.print('Not buying hacknet servers in bitnode with money multi of ' + multis.HacknetNodeMoney);
         return;
