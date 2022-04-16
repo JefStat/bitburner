@@ -48,7 +48,7 @@ async function writeServers() {
 		const serverDetails = ns.getServer(host);
 		serverDetails.hasAdminRights = false;
 		serverDetails.backdoorInstalled = false;
-		const fp = `/tmp/${host.replaceAll(/[\.\s]*/g, '_')}.txt`;
+		const fp = `/tmp/${host.replaceAll(/[\.\s]/g, '_')}.txt`;
 		await ns.write(fp, JSON.stringify(serverDetails, null, 2), 'w');
 		await ns.sleep(100);
 	}
