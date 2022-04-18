@@ -54,12 +54,11 @@ const preferredCrimeFactionOrder = ["Netburners", "Slum Snakes", "NiteSec", "Tet
 
 const loopSleepInterval = 5000; // 5 seconds
 const statusUpdateInterval = 120000; // 2 minutes (outside of this, minor updates in e.g. stats aren't logged)
-const restartWorkInteval = 30000; // Collect e.g. rep earned by stopping and starting work;
+const restartWorkInterval = 30000; // Collect e.g. rep earned by stopping and starting work;
 let noFocus = false; // Can be set via command line to disable doing work that requires focusing (crime, studying, or focused faction/company work)
 let noStudying = false; // Disable studying for Charisma. Useful in longer resets when Cha augs are insufficient to meet promotion requirements (Also disabled with --no-focus)
 let noCrime = false; // Disable doing crimes at all. (Also disabled with --no-focus)
 let crimeFocus = false; // Useful in crime-focused BNs when you want to focus on crime related factions
-let prioritizeInvites = false;
 let shouldFocusAtWork = false; // Whether we should focus on work or let it be backgrounded (based on whether "Neuroreceptor Management Implant" is owned, or "--no-focus" is specified)
 let repToDonate = 150; // Updated after looking at bitnode mults
 let lastActionRestart = 0;
@@ -111,7 +110,6 @@ export async function main(ns) {
     noStudying = options['no-studying'] || noFocus; // Can't study if we aren't allowed to steal focus
     noCrime = options['no-crime'] || noFocus; // Can't crime if we aren't allowed to steal focus
     crimeFocus = options['crime-focus'];
-    prioritizeInvites = options['prioritize-invites'];
     if (crimeFocus && noFocus)
         return ns.tprint("ERROR: Cannot use --no-focus and --crime-focus at the same time. You need to focus to do crime!");
     if (desiredAugStats.length === 0)
@@ -163,6 +161,11 @@ export async function main(ns) {
     while (true) { // After each loop, we will repeat all previous work "strategies" to see if anything new has been unlocked, and add one more "strategy" to the queue
         scope++;
         ns.print(`Starting main work loop with scope: ${scope}...`);
+        let invitations = ns.checkFactionInvitations();
+        for (let factionName of invitations) {
+            ns.joinFaction(factionName);
+        }
+
         const player = ns.getPlayer();
         if (player.factions.length > numJoinedFactions) { // If we've recently joined a new faction, reset our work scope
             scope = 0; // Back to basics until we've satisfied all highest-priority work
@@ -508,8 +511,6 @@ export async function workForSingleFaction(ns, factionName, forceUnlockDonations
     ns.print(`Faction "${factionName}" Highest Aug Req: ${highestRepAug.toLocaleString()}, Current Favor (${startingFavor}/${repToDonate}) Req: ${favorRepRequired.toLocaleString()}`);
     if (options['invites-only'])
         return ns.print(`--invites-only Skipping working for faction...`);
-    if (prioritizeInvites && !forceUnlockDonations && !forceBestAug)
-        return ns.print(`--prioritize-invites Skipping working for faction for now...`);
 
     let lastStatusUpdateTime = 0;
     while ((currentReputation = ns.getFactionRep(factionName)) < factionRepRequired) {
@@ -528,7 +529,7 @@ export async function workForSingleFaction(ns, factionName, forceUnlockDonations
             lastStatusUpdateTime = Date.now();
         }
         await tryBuyReputation(ns);
-        await ns.sleep(restartWorkInteval);
+        await ns.sleep(restartWorkInterval);
         // Detect our rep requirement decreasing (e.g. if we exported for our daily +1 faction rep)
         let currentFavor = await getCurrentFactionFavour(ns, factionName);
         if (currentFavor > startingFavor && !forceBestAug) {
@@ -680,7 +681,7 @@ export async function workForMegacorpFactionInvite(ns, factionName, waitForInvit
         if (ns.applyToCompany(companyName, currentRole))
             announce(ns, `Unexpected '${currentRole}' promotion from ${currentJob} to "${ns.getPlayer().jobs[companyName]}. Promotion logic must be off..."`, 'warning');
         // TODO: If we ever get rid of the below periodic restart-work, we will need to monitor for interruptions with player.workType == e.g. "Work for Company"
-        if (!studying && (!working || (Date.now() - lastActionRestart >= restartWorkInteval) /* We must periodically restart work to collect Rep Gains */)) {
+        if (!studying && (!working || (Date.now() - lastActionRestart >= restartWorkInterval) /* We must periodically restart work to collect Rep Gains */)) {
             // Work for the company (assume daemon is grinding hack XP as fast as it can, so no point in studying for that)
             //if (await getNsDataThroughFile(ns, `ns.workForCompany('${companyName}')); ns.setFocus(${shouldFocusAtWork}`, '/Temp/work-for-company.txt')) {
             if (ns.workForCompany(companyName, shouldFocusAtWork)) {

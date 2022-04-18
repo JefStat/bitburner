@@ -1,6 +1,7 @@
 import { initAugments } from "./augments";
 
 let ns;
+
 /** @param {NS} pns **/
 export async function main(pns) {
 	ns = pns;
@@ -27,13 +28,14 @@ export async function main(pns) {
 
 	ns.print('init augs details');
 	await initAugments(ns);
+	ns.print('init sleeves statics');
+	await writeSleeveData();
 
 	await writeServers('', 'home');
 	ns.exec('ensureRoot.js', 'home');
-
-	// ns.print(multis);
 	ns.exec('purchase-servers.js', 'home');
 	// ns.exec('player.js', 'home');
+	ns.exec('sleeves.js', 'home');
 	ns.exec('megacorp.js', 'home');
 	ns.exec('workForFaction.js', 'home', 1, !ns.gang.inGang() ? `--crime-focus` : '');
 	if (ns.gang.inGang()) ns.exec('gangum.js', 'home');
@@ -53,4 +55,12 @@ async function writeServers() {
 		await ns.write(fp, JSON.stringify(serverDetails, null, 2), 'w');
 		await ns.sleep(100);
 	}
+}
+
+async function writeSleeveData() {
+	const getNumSleeves = ns.sleeve.getNumSleeves();
+	const data = {
+		getNumSleeves
+	};
+	await ns.write( JSON.stringify(data),'/tmp/sleeves_static.txt','w')
 }
