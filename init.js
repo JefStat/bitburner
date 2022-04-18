@@ -34,7 +34,8 @@ export async function main(pns) {
 	// ns.print(multis);
 	ns.exec('purchase-servers.js', 'home');
 	// ns.exec('player.js', 'home');
-	ns.exec('workForFaction.js', 'home');
+	ns.exec('megacorp.js', 'home');
+	ns.exec('workForFaction.js', 'home', 1, !ns.gang.inGang() ? `--crime-focus` : '');
 	if (ns.gang.inGang()) ns.exec('gangum.js', 'home');
 	ns.exec('mcp_hgw.js', 'home');
 	ns.exec('custom-stats.js', 'home');

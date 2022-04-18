@@ -1,4 +1,4 @@
-import {inGangStatic, tryGetBitNodeMultipliers} from 'utils.js';
+import { inGangStatic, tryGetBitNodeMultipliers } from 'utils.js';
 import {
     factions,
     getAllAugmentRepReq,
@@ -96,6 +96,12 @@ export function autocomplete(data, args) {
 export async function main(ns) {
     ns.disableLog('sleep');
     ns.disableLog('getServerRequiredHackingLevel');
+    ns.disableLog('workForFaction');
+    ns.disableLog('workForCompany');
+    ns.disableLog('stopAction');
+    ns.disableLog('applyToCompany');
+    ns.disableLog('commitCrime');
+    ns.clearLog();
     ns.tail();
     options = ns.flags(argsSchema);
     const desiredAugStats = (options['desired-stats'] || []);
@@ -132,20 +138,19 @@ export async function main(ns) {
         let configGangIndex = preferredEarlyFactionOrder.findIndex(f => f === "Slum Snakes");
         if (playerGang && configGangIndex !== -1) // If we're in a gang, don't need to earn an invite to slum snakes anymore
             preferredEarlyFactionOrder.splice(configGangIndex, 1);
-        //TODO missing one faction here default to slum snakes as go to gang join
-        allGangFactions = ["Tetrads", "The Black Hand", "The Syndicate", "The Dark Army", "Speakers for the Dead"];
+        allGangFactions = ["Tetrads", "The Black Hand", "The Syndicate", "The Dark Army", "Speakers for the Dead", "NiteSec"];
     }
     mostExpensiveAugByFaction = Object.fromEntries(factionList.map(f => [f, dictFactionAugs[f]
         .filter(aug => !ownedAugmentations.includes(aug))
         .reduce((max, aug) => Math.max(max, dictAugRepReqs[aug]), -1)]));
-    ns.print("Most expensive unowned aug by faction: " + JSON.stringify(mostExpensiveAugByFaction));
+    ns.print("Most expensive unowned aug by faction: " + JSON.stringify(mostExpensiveAugByFaction, null, 2));
     // TODO: Detect when the most expensive aug from two factions is the same - only need it from the first one. (Update lists and remove 'afforded' augs?)
     mostExpensiveDesiredAugByFaction = Object.fromEntries(
         factionList.map(f => [f, dictFactionAugs[f].filter(aug => !ownedAugmentations.includes(aug) && (Object.keys(dictAugStats[aug]).length === 0 || !desiredAugStats ||
             Object.keys(dictAugStats[aug]).some(key => desiredAugStats.some(stat => key.includes(stat)))))
             .reduce((max, aug) => Math.max(max, dictAugRepReqs[aug]), -1)])
     );
-    ns.print("Most expensive desired aug by faction: " + JSON.stringify(mostExpensiveDesiredAugByFaction));
+    ns.print("Most expensive desired aug by faction: " + JSON.stringify(mostExpensiveDesiredAugByFaction, null, 2));
     let completedFactions = Object.keys(mostExpensiveAugByFaction).filter(fac => mostExpensiveAugByFaction[fac] === -1 && !factionSpecificConfigs.find(c => c.name === fac)?.forceUnlock);
     let skipFactions = skipFactionsConfig.concat(completedFactions);
     let softCompletedFactions = Object.keys(mostExpensiveDesiredAugByFaction).filter(fac => mostExpensiveDesiredAugByFaction[fac] === -1 &&
@@ -326,7 +331,7 @@ async function earnFactionInvite(ns, factionName) {
         }
         // Change the company to work for into whichever company we can get to CEO fastest with. Minimize needed_rep/rep_gain_rate. CEO job is at 3.2e6 rep, so (3.2e6-current_rep)/(100+favor).
         factionConfig.companyName = companyNames.sort((a, b) => (3.2e6 - ns.getCompanyRep(a)) / (100 + favorByCompany[a]) - (3.2e6 - ns.getCompanyRep(b)) / (100 + favorByCompany[b]))[0];
-        while(!ns.joinFaction('${factionName}')) { await ns.asleep(1000); }
+        while (!ns.joinFaction('${factionName}')) { await ns.asleep(1000); }
         workedForInvite = await workForMegacorpFactionInvite(ns, factionName, false); // Work until CTO and the external script joins this faction, triggering an exit condition.
     }
 
@@ -371,7 +376,7 @@ export async function crimeForKillsKarmaStats(ns, reqKills, reqKarma, reqStats) 
     let crime = '', lastCrime = '', lastStatusUpdateTime = 0, crimeCount = 0;
     while (forever || player.strength < reqStats || player.defense < reqStats || player.dexterity < reqStats || player.agility < reqStats || player.numPeopleKilled < reqKills || -ns.heart.break() < reqKarma) {
         let crimeChances = {};
-        for(let crime of bestCrimesByDifficulty){
+        for (let crime of bestCrimesByDifficulty) {
             crimeChances[crime] = ns.getCrimeChance(crime);
         }
         let needStats = player.strength < reqStats || player.defense < reqStats || player.dexterity < reqStats || player.agility < reqStats;
@@ -506,11 +511,11 @@ export async function workForSingleFaction(ns, factionName, forceUnlockDonations
     if (prioritizeInvites && !forceUnlockDonations && !forceBestAug)
         return ns.print(`--prioritize-invites Skipping working for faction for now...`);
 
-    let lastStatusUpdateTime =0;
+    let lastStatusUpdateTime = 0;
     while ((currentReputation = ns.getFactionRep(factionName)) < factionRepRequired) {
         const factionWork = await detectBestFactionWork(ns, factionName); // Before each loop - determine what work gives the most rep/second for our current stats
         //if (await getNsDataThroughFile(ns, `ns.workForFaction('${factionName}', '${factionWork}') === true); ns.setFocus(${shouldFocusAtWork}`, '/Temp/work-for-faction.txt'))
-        if (ns.workForFaction(factionName, factionWork)) {
+        if (ns.workForFaction(factionName, factionWork, shouldFocusAtWork)) {
             lastActionRestart = Date.now();
             ns.tail(); // Force a tail window open to help the user kill this script if they accidentally closed the tail window and don't want to keep studying
         } else {
@@ -544,20 +549,20 @@ export async function workForSingleFaction(ns, factionName, forceUnlockDonations
  * Try all work types and see what gives the best rep gain with this faction! */
 async function detectBestFactionWork(ns, factionName) {
     let bestWork, bestRepRate = 0;
-    for (const work of ["security", "field", "hacking"]) {
+    for (const work of ["security", "field", "hacking contracts"]) {
         //if (!await getNsDataThroughFile(ns, `ns.workForFaction('${factionName}', '${work}') === true); ns.setFocus(${shouldFocusAtWork}`, '/Temp/work-for-faction.txt'))
-        if (!ns.workForFaction(factionName, work)) {
-            //ns.print(`"${factionName}" work ${work} not supported.`);
+        if (!ns.workForFaction(factionName, work, shouldFocusAtWork)) {
+            // ns.print(`"${factionName}" work "${work}" not supported.`);
             continue; // This type of faction work must not be supported
         }
         const currentRepGainRate = ns.getPlayer().workRepGainRate;
-        //ns.print(`"${factionName}" work ${work} provides ${formatNumberShort(currentRepGainRate)} rep rate`);
+        // ns.print(`"${factionName}" work ${work} provides ${currentRepGainRate} rep rate`);
         if (currentRepGainRate > bestRepRate) {
             bestRepRate = currentRepGainRate;
             bestWork = work;
         }
     }
-    return bestWork;
+    return bestWork || 'hacking'; // || hacking bug is fixed problem with gang and working nitesec
 }
 
 /** @param {NS} ns
@@ -630,7 +635,7 @@ export async function workForMegacorpFactionInvite(ns, factionName, waitForInvit
         const bestJobTier = Math.max(qualifyingItTier, qualifyingSoftwareTier); // Go with whatever job promotes us higher
         const bestRoleName = qualifyingItTier > qualifyingSoftwareTier ? "it" : "software"; // If tied for qualifying tier, go for software
         if (currentJobTier < bestJobTier || currentRole !== bestRoleName) { // We are ready for a promotion, ask for one!
-            if (ns.applyToCompany(companyName,bestRoleName))
+            if (ns.applyToCompany(companyName, bestRoleName))
                 announce(ns, `Successfully applied to "${companyName}" for a '${bestRoleName}' Job or Promotion`, 'success');
             else if (currentJobTier !== -1) // Unless we just restarted "work-for-factions" and lost track of our current job, this is an error
                 announce(ns, `Application to "${companyName}" for a '${bestRoleName}' Job or Promotion failed.`, 'error');
@@ -672,13 +677,13 @@ export async function workForMegacorpFactionInvite(ns, factionName, waitForInvit
         await tryBuyReputation(ns);
 
         // Regardless of the earlier promotion logic, always try for a promotion to make sure we don't miss a promotion due to buggy logic
-        if (ns.applyToCompany(companyName,currentRole))
+        if (ns.applyToCompany(companyName, currentRole))
             announce(ns, `Unexpected '${currentRole}' promotion from ${currentJob} to "${ns.getPlayer().jobs[companyName]}. Promotion logic must be off..."`, 'warning');
         // TODO: If we ever get rid of the below periodic restart-work, we will need to monitor for interruptions with player.workType == e.g. "Work for Company"
         if (!studying && (!working || (Date.now() - lastActionRestart >= restartWorkInteval) /* We must periodically restart work to collect Rep Gains */)) {
             // Work for the company (assume daemon is grinding hack XP as fast as it can, so no point in studying for that)
             //if (await getNsDataThroughFile(ns, `ns.workForCompany('${companyName}')); ns.setFocus(${shouldFocusAtWork}`, '/Temp/work-for-company.txt')) {
-            if (ns.workForCompany(companyName)) {
+            if (ns.workForCompany(companyName, shouldFocusAtWork)) {
                 lastActionRestart = Date.now();
                 working = true;
             } else {
