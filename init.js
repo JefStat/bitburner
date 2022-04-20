@@ -34,10 +34,10 @@ export async function main(pns) {
 	await writeServers('', 'home');
 	ns.exec('ensureRoot.js', 'home');
 	ns.exec('purchase-servers.js', 'home');
-	// ns.exec('player.js', 'home');
+	ns.exec('player.js', 'home');
 	ns.exec('sleeves.js', 'home');
 	ns.exec('megacorp.js', 'home');
-	ns.exec('workForFaction.js', 'home', 1, !ns.gang.inGang() ? `--crime-focus` : '');
+	ns.exec('workForFaction.js', 'home', 1, !ns.gang.inGang() ? `--gang-focus` : '');
 	if (ns.gang.inGang()) ns.exec('gangum.js', 'home');
 	ns.exec('mcp_hgw.js', 'home');
 	ns.exec('custom-stats.js', 'home');
@@ -62,5 +62,5 @@ async function writeSleeveData() {
 	const data = {
 		getNumSleeves
 	};
-	await ns.write( JSON.stringify(data),'/tmp/sleeves_static.txt','w')
+	await ns.write('/tmp/sleeves_static.txt', JSON.stringify(data), 'w')
 }

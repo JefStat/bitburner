@@ -1,5 +1,6 @@
 import { list_servers } from "opened_servers.js";
 import { boxTailSingleton } from 'utils.js';
+import { MinHeap} from "util/heap.js";
 
 /** @param {NS} ns **/
 export function main(ns) {
@@ -14,7 +15,7 @@ export function main(ns) {
         return onServer;
     }).filter(o => o.length);
     ns.print(`Found ${contracts.length} contracts`);
-    contracts.forEach((contract) => ns.tprint(contract));
+    contracts.forEach((contract) => ns.print(contract));
 }
 
 function solve(type, data, server, contract, ns) {
@@ -68,6 +69,15 @@ function solve(type, data, server, contract, ns) {
         case "Total Ways to Sum":
             solution = totalWayToSum(data);
             break;
+        case "HammingCodes: Integer to encoded Binary":
+            solution = hammingEncode(data);
+            break;
+        case "Array Jumping Game II":
+            solution = arrayJumpingGame2(data);
+            break;
+        case "Shortest Path in a Grid":
+            // solution = shortestGridPath(data);
+            // break;
         default:
             solution = null;
             ns.print(type + ' No solution implemented');
@@ -313,7 +323,7 @@ function subArrays(arr, start, end, acc) {
     // create the subarray
     else {
         let subArr = [];
-        for (var i = start; i < end; i++) {
+        for (let i = start; i < end; i++) {
             subArr.push(arr[i]);
         }
         subArr.push(arr[end]);
@@ -330,7 +340,6 @@ function subArrayMaxSum(arr) {
     const sums = arrays.map(o => o.reduce((a, b) => a + b, 0));
     return Math.max(...sums);
 }
-
 
 function arrayJump(arr) {
     let n = arr.length;
@@ -357,7 +366,6 @@ function arrayJump(arr) {
     return jumps[0] < Number.MAX_VALUE ? 1 : 0;
 }
 
-
 // works for simple answers locks up a browser for large ones
 function allExpressions(data) {
     const digits = data[0].split('')
@@ -378,13 +386,13 @@ function allExpressions(data) {
 // Sanitize Parentheses in Expression
 
 function sanitizeParentheses(data) {
-    var solution = Sanitize(data)
+    const solution = Sanitize(data);
     if (solution == null) { return ('[""]') }
     else { return ("[" + solution.join(",") + "]") }
 }
 
 function Sanitize_removeOneParth(item) {
-    var possibleAnswers = []
+    const possibleAnswers = [];
     for (let i = 0; i < item.length; i++) {
         if (item[i].toLowerCase().indexOf("(") === -1 && item[i].toLowerCase().indexOf(")") === -1) {
             continue
@@ -396,8 +404,8 @@ function Sanitize_removeOneParth(item) {
 }
 
 function Sanitize_isValid(item) {
-    var unclosed = 0
-    for (var i = 0; i < item.length; i++) {
+    let unclosed = 0;
+    for (let i = 0; i < item.length; i++) {
         if (item[i] == "(") { unclosed++ }
         else if (item[i] == ")") { unclosed-- }
         if (unclosed < 0) { return false }
@@ -406,9 +414,9 @@ function Sanitize_isValid(item) {
 }
 
 function Sanitize(data) {
-    var currentPossible = [data]
-    for (var i = 0; i < currentPossible.length; i++) {
-        var newPossible = new Set()
+    let currentPossible = [data];
+    for (let i = 0; i < currentPossible.length; i++) {
+        let newPossible = new Set();
         for (var j = 0; j < currentPossible.length; j++) {
             let newRemovedPossible = Sanitize_removeOneParth(currentPossible[j])
 
@@ -417,13 +425,13 @@ function Sanitize(data) {
             }
         }
 
-        var validBoolList = []
+        const validBoolList = [];
 
         for (let item of newPossible) {
             validBoolList.push(Sanitize_isValid(item))
         }
         if (validBoolList.includes(true)) {
-            var finalList = []
+            let finalList = [];
             newPossible = [...newPossible]
 
             for (var j = 0; j < validBoolList.length; j++) {
@@ -465,4 +473,202 @@ function twts(limit, n, cache) {
 
     if (!(n in cache)) { cache[n] = {}; }
     cache[n][limit] = s; return s;
+}
+
+// hamming.js: Hamming code in javascript
+/**
+ * hammingEncode - encode binary string input with hamming algorithm
+ * @param {String} input - binary string, '10101'
+ * @returns {String} - encoded binary string
+ */
+function hammingEncode(input) {
+    let output = input;
+    const controlBitsIndexes = [];
+    const l = input.length;
+    let i = 1;
+    let key, j, arr, temp, check;
+
+    while (l / i >= 1) {
+        controlBitsIndexes.push(i);
+        i *= 2;
+    }
+
+    for (j = 0; j < controlBitsIndexes.length; j++) {
+        key = controlBitsIndexes[j];
+        arr = output.slice(key - 1).split('');
+        temp = chunk(arr, key);
+        check = (temp.reduce(function (prev, next, index) {
+            if (!(index % 2)) {
+                prev = prev.concat(next);
+            }
+            return prev;
+        }, []).reduce(function (prev, next) { return +prev + +next }, 0) % 2) ? 1 : 0;
+        output = output.slice(0, key - 1) + check + output.slice(key - 1);
+        if (j + 1 === controlBitsIndexes.length && output.length / (key * 2) >= 1) {
+            controlBitsIndexes.push(key * 2);
+        }
+    }
+
+    return output;
+}
+
+/**
+ * hammingPureDecode - just removes from input parity check bits
+ * @param {String} input - binary string, '10101'
+ * @returns {String} - decoded binary string
+ */
+function hammingPureDecode(input) {
+    const controlBitsIndexes = [];
+    const l = input.length;
+    let originCode = input;
+    let i = 1;
+    while (l / i >= 1) {
+        controlBitsIndexes.push(i);
+        i *= 2;
+    }
+
+    controlBitsIndexes.forEach(function (key, index) {
+        originCode = originCode.substring(0, key - 1 - index) + originCode.substring(key - index);
+    });
+
+    return originCode;
+}
+
+/**
+ * hammingDecode - decodes encoded binary string, also try to correct errors
+ * @param {String} input - binary string, '10101'
+ * @returns {String} - decoded binary string
+ */
+function hammingDecode(input) {
+    const controlBitsIndexes = [];
+    let sum = 0;
+    const l = input.length;
+    let i = 1;
+    let output = hammingPureDecode(input);
+    const inputFixed = hammingEncode(output);
+
+
+    while (l / i >= 1) {
+        controlBitsIndexes.push(i);
+        i *= 2;
+    }
+
+    controlBitsIndexes.forEach(function (i) {
+        if (input[i] !== inputFixed[i]) {
+            sum += i;
+        }
+    });
+
+    if (sum) {
+        output[sum - 1] === '1'
+            ? output = replaceCharacterAt(output, sum - 1, '0')
+            : output = replaceCharacterAt(output, sum - 1, '1');
+    }
+    return output;
+}
+
+function replaceCharacterAt(str, index, character) {
+    return str.substr(0, index) + character + str.substr(index+character.length);
+}
+
+/**
+ * chunk - split array into chunks
+ * @param {Array} arr - array
+ * @param {Number} size - chunk size
+ * @returns {Array} - chunked array
+ */
+function chunk(arr, size) {
+    const chunks = [];
+    let i = 0;
+    let n = arr.length;
+    while (i < n) {
+        chunks.push(arr.slice(i, i += size));
+    }
+    return chunks;
+}
+
+const arrayJumpingGame2 = (data) => {
+    const intervals = data.slice();
+    intervals.sort((a,b) => {
+        return a[0] - b[0];
+    });
+
+    const result = [];
+    let start = intervals[0][0];
+    let end = intervals[0][1];
+    for (const interval of intervals) {
+        if (interval[0] <= end) {
+            end = Math.max(end, interval[1]);
+        } else {
+            result.push([start, end]);
+            start = interval[0];
+            end = interval[1];
+        }
+    }
+    result.push([start, end]);
+
+   return convert2DArrayToString(result);
+}
+function convert2DArrayToString(arr) {
+    const components = [];
+    arr.forEach((e) => {
+        let s = e.toString();
+        s = ["[", s, "]"].join("");
+        components.push(s);
+    });
+
+    return components.join(",").replace(/\s/g, "");
+}
+
+// TODO modify to write list of UDLR instructions
+const shortestGridPath = (data) => {
+    const width = data[0].length;
+    const height = data.length;
+    const dstY = height - 1;
+    const dstX = width - 1;
+
+    const distance = new Array(height);
+    const queue = new MinHeap();
+
+    for (let y = 0; y < height; y++) {
+        distance[y] = new Array(width).fill(Infinity);
+        //prev[y] = new Array(width).fill(undefined) as [undefined];
+    }
+
+    function validPosition(y, x) {
+        return y >= 0 && y < height && x >= 0 && x < width && data[y][x] === 0;
+    }
+
+    // List in-bounds and passable neighbors
+    function* neighbors(y, x) {
+        if (validPosition(y - 1, x)) yield [y - 1, x]; // Up
+        if (validPosition(y + 1, x)) yield [y + 1, x]; // Down
+        if (validPosition(y, x - 1)) yield [y, x - 1]; // Left
+        if (validPosition(y, x + 1)) yield [y, x + 1]; // Right
+    }
+
+    // Prepare starting point
+    distance[0][0] = 0;
+    queue.push([0, 0], 0);
+
+    // Take next-nearest position and expand potential paths from there
+    while (queue.size > 0) {
+        const [y, x] = queue.pop();
+        for (const [yN, xN] of neighbors(y, x)) {
+            const d = distance[y][x] + 1;
+            if (d < distance[yN][xN]) {
+                if (distance[yN][xN] === Infinity)
+                    // Not reached previously
+                    queue.push([yN, xN], d);
+                // Found a shorter path
+                else queue.changeWeight(([yQ, xQ]) => yQ === yN && xQ === xN, d);
+                //prev[yN][xN] = [y, x];
+                distance[yN][xN] = d;
+            }
+        }
+    }
+
+    // No path at all?
+    if (distance[dstY][dstX] === Infinity) return "";
+    return distance;
 }

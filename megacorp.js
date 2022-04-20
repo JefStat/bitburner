@@ -1,7 +1,5 @@
-/**
- * Set up and run a corporation. Note that access to the corporation API costs tons of RAM.
- *
- */
+import { boxTailSingleton } from 'utils.js';
+
 const _ = globalThis._; // lodash
 // Global constants
 export const argsSchema = [
@@ -117,14 +115,21 @@ let c;
 export async function main(ns) {
 	ns.disableLog('sleep');
 	ns.clearLog();
-	ns.tail();
+	// ns.tail();
+	boxTailSingleton(ns, 'corp', '🏠', '400px');
 	c = ns.corporation;
 	// Pull in any information we only need at startup.
 	options = ns.flags(argsSchema);
 	verbose = options.v || options.verbose;
 
 	// See if we've already created a corporation.
-	myCorporation = c.getCorporation();
+	try {
+		myCorporation = c.getCorporation();
+	} catch {
+		c.createCorporation('corp', true);
+		myCorporation = c.getCorporation();
+	}
+	await ns.write('/tmp/incorp.txt', '', 'w');
 	// If we already have a corporation, make sure we didn't leave any workers waiting for assignment.
 	for (const division of myCorporation.divisions) {
 		for (const city of division.cities) {
@@ -161,7 +166,7 @@ async function doManageCorporation(ns) {
 	let now = new Date().toLocaleString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
 
 	if (verbose) log(ns, `----- [ ${myCorporation.name} Quarterly Report ${now} ] -----`);
-	log(ns, `Corporate cash on hand: ${ns.nFormat(myCorporation.funds,'0.0a')} (Gross: ${ns.nFormat(myCorporation.revenue, '0.0a')}/s, Net: ${ns.nFormat(netIncome,'0.0a')}/s)`);
+	log(ns, `Corporate cash on hand: ${ns.nFormat(myCorporation.funds, '0.0a')} (Gross: ${ns.nFormat(myCorporation.revenue, '0.0a')}/s, Net: ${ns.nFormat(netIncome, '0.0a')}/s)`);
 
 	// See if we can raise more money.
 	await tryRaiseCapital(ns);
@@ -171,7 +176,7 @@ async function doManageCorporation(ns) {
 	// If we're making more than $1 sextillion / sec, we need to stop. The game gets slow if we start employing too many people.
 	if (myCorporation.revenue > 1e21) budget = 0;
 	budget = Math.max(0, budget);
-	if (verbose) log(ns, `Working with a corporate budget of ${ns.nFormat(budget,'0.0a')}`);
+	if (verbose) log(ns, `Working with a corporate budget of ${ns.nFormat(budget, '0.0a')}`);
 
 	// Let's figure out all of the things we'd like to do, before we commit to anything.
 	let tasks = [];
@@ -298,7 +303,7 @@ async function doManageCorporation(ns) {
 	 */
 	let spent = await runTasks(ns, tasks, budget);
 	if (spent) budget -= spent;
-	if (spent > 0 && verbose) log(ns, `Spent ${ns.nFormat(spent, '0.0a')} of our budget of ${ns.nFormat(budget,'0.0a')}.`);
+	if (spent > 0 && verbose) log(ns, `Spent ${ns.nFormat(spent, '0.0a')} of our budget of ${ns.nFormat(budget, '0.0a')}.`);
 
 	/**
 	 * Even though we've done all of our desired high level tasks, we still need to tend to each division individually.
@@ -333,7 +338,7 @@ async function tryRaiseCapital(ns) {
 		if (offer.round > 4) raisingCapital = 0;
 		let willAccept = true;
 		if (offer && offer.round <= 4) {
-			log(ns, `Considering raising private capital round ${offer.round}. Offered ${ns.nFormat(offer.funds,'0.0a')} for ${offer.shares} shares.`);
+			log(ns, `Considering raising private capital round ${offer.round}. Offered ${ns.nFormat(offer.funds, '0.0a')} for ${offer.shares} shares.`);
 
 			// Make sure all employees are happy.
 			let satisfied = allEmployeesSatisfied(ns);
@@ -391,7 +396,7 @@ async function tryRaiseCapital(ns) {
 			if (options['can-accept-funding'] && raisingCapital > 4 && !options.mock) {
 				let success = c.acceptInvestmentOffer();
 				raisingCapital = 0;
-				if (success) log(ns, `WARNING: Accepted round ${offer.round} funding. Took ${ns.nFormat(offer.funds,'0.0a')} for ${offer.shares} shares.`);
+				if (success) log(ns, `WARNING: Accepted round ${offer.round} funding. Took ${ns.nFormat(offer.funds, '0.0a')} for ${offer.shares} shares.`);
 				else log(ns, `ERROR: Tried to accept round ${offer.round} funding, but something went wrong.`);
 			} else if (options['can-accept-funding'] && raisingCapital > 0) {
 				log(ns, `SUCCESS: Raising capital in ${5 - raisingCapital} cycles.`);
@@ -452,7 +457,7 @@ async function runTasks(ns, tasks, budget, keepSpending = true) {
 	for (const task of tasks) {
 		let success = false;
 		if (budget - task.cost > 0) {
-			log(ns, `  Spending ${ns.nFormat(task.cost,'0.0a')} on ${task.name}`);
+			log(ns, `  Spending ${ns.nFormat(task.cost, '0.0a')} on ${task.name}`);
 			// Some of the ns.corporation calls we use are void functions, so treat a return value of undefined with no exception as a success.
 			if (!options.mock)
 				try {
@@ -520,7 +525,7 @@ async function doManageDivision(ns, division, budget) {
 	 * much about spending the whole budget. Anything we don't spend now will get passed on
 	 * to other divisions, or recycled in the next pass.
 	 */
-	if (verbose) log(ns, `Managing ${division.name} division with a budget of ${ns.nFormat(budget,'0.0a')}.`);
+	if (verbose) log(ns, `Managing ${division.name} division with a budget of ${ns.nFormat(budget, '0.0a')}.`);
 	let spent = 0;
 	let tasks = [];
 
@@ -533,7 +538,7 @@ async function doManageDivision(ns, division, budget) {
 				if (cost < budget * 0.25) {
 					if (verbose) log(ns, `Want to open new offices in ${city}.`);
 					tasks.push(new Task(`Expand ${division.name} to ${city}`, () => doExpandCity(ns, division.name, city), cost, 80));
-				} else if (verbose) log(ns, `WARNING: We would like to expand to ${city}, but it would cost ${ns.nFormat(cost, '0.0a')} on our budget of ${ns.nFormat(budget,'0.0a')}.`);
+				} else if (verbose) log(ns, `WARNING: We would like to expand to ${city}, but it would cost ${ns.nFormat(cost, '0.0a')} on our budget of ${ns.nFormat(budget, '0.0a')}.`);
 			}
 		}
 	}
@@ -579,7 +584,7 @@ async function doManageDivision(ns, division, budget) {
 		try {
 			hasResearch = c.hasResearched(division.name, researchType);
 			cost = c.getResearchCost(division.name, researchType);
-		} catch {}
+		} catch { }
 		if (!hasResearch && researchToSpend >= cost) {
 			log(ns, `INFO: Buying research project ${researchType} for ${cost} research points.`, 'info');
 			c.research(division.name, researchType);
@@ -721,7 +726,7 @@ async function doManageDivision(ns, division, budget) {
 	tasks.sort((a, b) => a.priority - b.priority).reverse();
 	// Finally, run all the tasks we've collected.
 	spent += await runTasks(ns, tasks, budget);
-	if (spent > 0 && verbose) log(ns, `Spent ${ns.nFormat(spent,'0.0a')} of our budget of ${ns.nFormat(totalBudget,'0.0a')}.`);
+	if (spent > 0 && verbose) log(ns, `Spent ${ns.nFormat(spent, '0.0a')} of our budget of ${ns.nFormat(totalBudget, '0.0a')}.`);
 
 	return spent;
 }
@@ -798,7 +803,7 @@ function createNewProduct(ns, division) {
 			.map((p) => budgetFromProductName(p))
 			.sort((a, b) => a - b)
 			.reverse();
-	} catch (error) {}
+	} catch (error) { }
 	if (spentOnProducts.length > 0) {
 		// If our products weren't named correctly default to assuming they were 2b, 4b, 8b...
 		wantToSpend = wantToSpend * Math.pow(2, spentOnProducts.length - 1);
@@ -807,12 +812,12 @@ function createNewProduct(ns, division) {
 	let productName = `${division.type}-${Math.log10(wantToSpend).toFixed(2)}`;
 	try {
 		c.makeProduct(division.name, hqCity, productName, wantToSpend / 2, wantToSpend / 2);
-		log(ns, `Creating new product '${productName}' for ${ns.nFormat(wantToSpend,'0.0a')}.`, 'info', true);
+		log(ns, `Creating new product '${productName}' for ${ns.nFormat(wantToSpend, '0.0a')}.`, 'info', true);
 		spent += wantToSpend;
 		extraReserve = 0;
 	} catch (e) {
 		// If we fail to create the product, just reserve the money we want to spend.
-		log(ns, `Reserving budget of ${ns.nFormat(wantToSpend,'0.0a')} for next product.`);
+		log(ns, `Reserving budget of ${ns.nFormat(wantToSpend, '0.0a')} for next product.`);
 		extraReserve = wantToSpend;
 	}
 	return spent;
@@ -966,7 +971,7 @@ async function doPriceDiscovery(ns) {
 			try {
 				let sMult = sPrice.split('*')[1];
 				lastPriceMultiplier = Number.parseFloat(sMult);
-			} catch {}
+			} catch { }
 			let votes = [];
 			for (const city of division.cities) {
 				// Each city is going to "vote" for how they want the price to be manipulated.
@@ -1064,7 +1069,7 @@ function doExpandCity(ns, divisionName, cityName) {
  * @param {string} toastStyle
  * @param {boolean} printToTerminal
  */
-function log(ns, log, toastStyle= '', printToTerminal= false) {
+function log(ns, log, toastStyle = '', printToTerminal = false) {
 	ns.print(log);
 	if (toastStyle) ns.toast(log, toastStyle);
 	if (printToTerminal) ns.tprint(log);
@@ -1104,7 +1109,7 @@ function getOfficeProductivity(office, forProduct = false) {
  */
 function percentChange(oldVal, newVal) {
 	let percentChange = (newVal / oldVal) * 100 - 100;
-	let sChange = nf(percentChange) + '%';
+	let sChange = percentChange + '%';
 	if (percentChange >= 0) sChange = '+' + sChange;
 	return sChange;
 }
