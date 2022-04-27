@@ -5,6 +5,39 @@ export const factions = {Illuminati:"Illuminati", Daedalus:"Daedalus", TheCovena
     NewTokyo:"New Tokyo", Sector12:"Sector-12", Volhaven:"Volhaven", SpeakersfortheDead:"Speakers for the Dead", TheDarkArmy:"The Dark Army",
     TheSyndicate:"The Syndicate", Silhouette:"Silhouette", Tetrads:"Tetrads", SlumSnakes:"Slum Snakes", Netburners:"Netburners",
     TianDiHui:"Tian Di Hui", CyberSec:"CyberSec", Bladeburners:"Bladeburners"};
+export const factionsWork = {"Illuminati":["field", "hacking contracts"],
+    "Daedalus":["field", "hacking contracts"],
+    "The Covenant":["field", "hacking contracts"],
+    "ECorp":["security", "field", "hacking contracts"],
+    "MegaCorp":["security", "field", "hacking contracts"],
+    "Bachman & Associates":["security", "field", "hacking contracts"],
+    "Blade Industries":["security", "field", "hacking contracts"],
+    "NWO":["security", "field", "hacking contracts"],
+    "Clarke Incorporated":["security", "field", "hacking contracts"],
+    "OmniTek Incorporated":["security", "field", "hacking contracts"],
+    "Four Sigma":["security", "field", "hacking contracts"],
+    "KuaiGong International":["security", "field", "hacking contracts"],
+    "Fulcrum Secret Technologies":["security", "field", "hacking contracts"],
+    "BitRunners":["hacking contracts"],
+    "The Black Hand":["field", "hacking contracts"],
+    "NiteSec":["hacking contracts"],
+    "Aevum":["security", "field", "hacking contracts"],
+    "Chongqing":["security", "field", "hacking contracts"],
+    "Ishima":["security", "field", "hacking contracts"],
+    "New Tokyo":["security", "field", "hacking contracts"],
+    "Sector-12":["security", "field", "hacking contracts"],
+    "Volhaven":["security", "field", "hacking contracts"],
+    "Speakers for the Dead":["security", "field", "hacking contracts"],
+    "The Dark Army":["security", "field", "hacking contracts"],
+    "The Syndicate":["security", "field", "hacking contracts"],
+    "Silhouette":["security", "field", "hacking contracts"],
+    "Tetrads":["security", "field"],
+    "Slum Snakes":["security", "field"],
+    "Netburners":["hacking contracts"],
+    "Tian Di Hui":["security", "hacking contracts"],
+    "CyberSec":["hacking contracts"],
+    "Bladeburners":[]};
+export const allGangFactions = ["Slum Snakes", "Tetrads", "The Black Hand", "The Syndicate", "The Dark Army", "Speakers for the Dead", "NiteSec"];
 
 let augmentationNames;
 /** @param {NS} ns **/
@@ -49,4 +82,11 @@ export function getOwnedAugmentationsStatic(ns) {
     return JSON.parse(ns.read(`/tmp/getOwnedAugmentations.txt`));
 }
 
-// await getNsDataThroughFile(ns, 'Object.keys(ns.gang.getOtherGangInformation())')
+export function getAugsRemainingAtFaction(ns) {
+    const playerAugs = getOwnedAugmentationsStatic(ns);
+    const factionAugs = getAugmentsPerFaction(ns);
+    const factionAugsLeft = {};
+    Object.entries(factionAugs)
+        .forEach(([faction, augs]) => factionAugsLeft[faction] = augs.filter(aug => !playerAugs.includes(aug)));
+    return factionAugsLeft;
+}

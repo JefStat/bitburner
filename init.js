@@ -37,7 +37,7 @@ export async function main(pns) {
 	ns.exec('player.js', 'home');
 	ns.exec('sleeves.js', 'home');
 	ns.exec('megacorp.js', 'home');
-	ns.exec('workForFaction.js', 'home', 1, !ns.gang.inGang() ? `--gang-focus` : '');
+	if (ns.getPlayer().bitNodeN !== 6) ns.exec('workForFaction.js', 'home', 1, !ns.gang.inGang() ? `--gang-focus` : '--no-crime');
 	if (ns.gang.inGang()) ns.exec('gangum.js', 'home');
 	ns.exec('mcp_hgw.js', 'home');
 	ns.exec('custom-stats.js', 'home');

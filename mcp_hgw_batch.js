@@ -18,7 +18,7 @@ export async function main(pns) {
 	ns.enableLog('exec')
 	ns.clearLog();
 	ns.tail();
-	boxTailSingleton(ns, 'mcp', '🥾', '200px');
+	boxTailSingleton(ns, 'mcp_batch', '🥾', '200px');
 	weaken_scriptRam = ns.getScriptRam(weaken_script, "home");
 	grow_scriptRam = ns.getScriptRam(grow_script, "home");
 	hack_scriptRam = ns.getScriptRam(hack_script, "home");
@@ -27,7 +27,7 @@ export async function main(pns) {
 }
 let hackPercent = .5;
 let bonusServers = 0;
-async function updateServerLists() {
+function updateServerLists() {
 	serversForExecution = ['home'].concat(list_servers(ns).filter(s => ns.hasRootAccess(s)));
 	const beforeHackStatusLength = hackStatus.length;
 	const serversToHack = list_servers(ns).filter(s => ns.hasRootAccess(s)
@@ -66,161 +66,202 @@ async function updateServerLists() {
 		bonusServers = Math.max(bonusServers - 1, 0);
 		if (bonusServers <= 0) hackPercent = Math.max(hackPercent - .1, .5);
 	}
-	if (oldHackPercent !== hackPercent || oldBonusServers !== bonusServers) ns.tprint(`BonusServers added ${bonusServers} Hack percent ${hackPercent}`);
+	if (oldHackPercent !== hackPercent || oldBonusServers !== bonusServers) ns.print(`BonusServers added ${bonusServers} Hack percent ${hackPercent}`);
 	// after aug install just start hacking on n00dles fist
 	if (hackStatus.length === 0) hackStatus.push({ server: 'n00dles' });
-	if (beforeHackStatusLength < hackStatus.length) ns.tprint(`Servers to hack ${hackStatus.length} ${hackStatus.map(o => o.server).join(',')}`);
+	if (beforeHackStatusLength < hackStatus.length) ns.print(`Servers to hack ${hackStatus.length} ${hackStatus.map(o => o.server).join(',')}`);
 }
-
+let batches = [];
+let target = 'n00dles';
 async function run() {
 	let i = 0;
-	await updateServerLists();
+	updateServerLists();
 	let updateAfter = Date.now().valueOf() + 30 * 1000;
 	while (true) {
-		if (!hackStatus[i].pid || (hackStatus[i].pid && !ns.isRunning(hackStatus[i].pid.weaken))) {
-			const ret = await runHGW(hackStatus[i].server);
-			hackStatus[i] = ret;
+
+		//todo prep logic
+
+		// const currentSec = ns.getServerSecurityLevel(target) - ns.getServerMinSecurityLevel(target);
+		// if (currentSec > 0) { // weaken prep
+		// 	const weaken = await runWeaken(target);
+		// 	return { server: target, promise: ns.asleep(weaken.time + 200), pid: { weaken: weaken.pid } };
+		// }
+
+		// todo run this check the moment before the hack lands, kill the PID if check fails
+		// if (ns.getServerMoneyAvailable(target) / ns.getServerMaxMoney(target) < .9) {
+		// 	return 0; // don't hack if server is not max money
+		// }
+
+		ns.print('planBatchRam');
+		let newBatchPlan = await planBatchRam(target);
+		while (newBatchPlan && batches.length < 50) {
+			batches.push(newBatchPlan);
+			newBatchPlan = await planBatchRam(target);
+			// await ns.sleep(1);
 		}
-		i = (i + 1) % hackStatus.length;
-		await ns.sleep(20);
+		ns.print('executeBatchParts');
+		for (const batch of batches) {
+			await executeBatchParts(batch);
+		}
+		// remove completed batches
+		batches = batches.filter(o => o.weakenHosts || o.hackHost || o.growHost);
+
+		// if (!hackStatus[i].pid || (hackStatus[i].pid && !ns.isRunning(hackStatus[i].pid.weaken))) {
+		// 	const ret = await runHGW(hackStatus[i].server);
+		// 	hackStatus[i] = ret;
+		// }
+		// i = (i + 1) % hackStatus.length;
+		await ns.sleep(50);
 		if (updateAfter < Date.now()) {
 			updateAfter = Date.now() + 30 * 1000;
-			await updateServerLists();
+			updateServerLists();
 			i = 0;
 		}
+		return; //run once testing
+	}
+}
+async function executeBatchParts(batch) {
+	/*
+	.weakenHosts []
+	.hackHost
+		threads_available, host, threadsAvailMinusNeed, ramUsed
+	.growHost
+	 */
+
+	const server = ns.getServer(batch.target);
+	server.hackDifficulty = server.minDifficulty;
+	server.moneyAvailable = server.moneyMax;
+
+	// (hackStart - 200) < NO_START_BATCH < (weakenEnd + 200)
+	const canRun = (date) => {
+		const hacksOnSameTarget = batches.filter(o => o.target === batch.target && o.weakenEnd > 0);
+		const batchesDuringDate = hacksOnSameTarget.filter(o => (o.hackEnd - 200) < date && date < (o.weakenEnd + 200));
+		return batchesDuringDate.length === 0;
+	}
+
+	if (batch.growEnd && batch.growHost && canRun(Date.now())) {
+		const growTime = ns.formulas.hacking.growTime(server, ns.getPlayer());
+		const newGrowEnd = Date.now() + growTime;
+		if (Math.abs(batch.growEnd - newGrowEnd) <= 100) {
+			const pid = await runGrow(batch.target, batch.growHost);
+			if (pid === 0) {
+				ns.tprint('FAILED ' + 'to start grow');
+			} else {
+				batch.growStart = Date.now();
+				batch.growEnd = newGrowEnd;
+				delete batch.growHost;
+			}
+		} else if ((newGrowEnd - batch.growEnd) > 100) {
+			ns.tprint('GROW START WINDOW MISSED');
+			removeExclusion(batch.growHost.host, batch.growHost.ramUsed);
+			delete batch.growHost;
+		}
+	}
+	if (batch.hackEnd && batch.hackHost && canRun(Date.now())) {
+		const hackTime = ns.formulas.hacking.hackTime(server, ns.getPlayer());
+		const newHackEnd = Date.now() + hackTime;
+		if (Math.abs(batch.hackEnd - newHackEnd) <= 100) {
+			const pid = await runHack(batch.target, batch.hackHost);
+			if (pid === 0) {
+				ns.tprint('FAILED ' + 'to start hack');
+			} else {
+				batch.hackStart = Date.now();
+				batch.hackEnd = newHackEnd;
+				delete batch.hackHost;
+			}
+		} else if ((newHackEnd - batch.hackEnd) > 100) {
+			ns.tprint('HACK START WINDOW MISSED');
+			removeExclusion(batch.hackHost.host, batch.hackHost.ramUsed);
+			delete batch.hackHost;
+		}
+	}
+
+	if (batch.weakenHosts && canRun(Date.now())) {
+		batch.weakenStart = Date.now();
+		const pids = await runWeaken(batch.target, batch.weakenHosts);
+		if (pids.filter(o => o === 0)) {
+			ns.tprint('FAILED ' + 'to start all weakens');
+		} else {
+			batch.weakenEnd = ns.formulas.hacking.weakenTime(server, ns.getPlayer());
+			batch.growEnd = batch.weakenEnd - 200;
+			batch.hackEnd = batch.growEnd - 200;
+			delete batch.weakenHosts;
+		}
 	}
 }
 
-async function runHGW(target) {
-	const currentSec = ns.getServerSecurityLevel(target) - ns.getServerMinSecurityLevel(target);
-	if (currentSec > 2) {
-		const weaken = await runWeaken(target, 1, 1);
-		return { server: target, promise: ns.asleep(weaken.time + 200), pid: { weaken: weaken.pid } };
+async function planBatchRam(target) {
+	const server = ns.getServer(target);
+	server.hackDifficulty = server.minDifficulty;
+	server.moneyAvailable = server.moneyMax;
+	const hackThreadsNeeded = () => {
+		return Math.max(Math.floor(hackPercent / ns.formulas.hacking.hackPercent(server, ns.getPlayer())), 1);
+	}
+	const growThreadsNeeded = (host, hackThreads) => {
+		const hackAmount = ns.hackAnalyze(target) * hackThreads * ns.getServerMaxMoney(target);
+		return Math.ceil(calculateGrowThreads(ns, target, hackAmount, getCores(host), { ServerGrowthRate }));
+	}
+	const weakenThreadsNeeded = (host, hackThreads, growThreads) => {
+		let security = ns.growthAnalyzeSecurity(growThreads);
+		security += ns.hackAnalyzeSecurity(hackThreads);
+		return Math.max(Math.ceil(security / ns.weakenAnalyze(1, getCores(host))), 1);
 	}
 
-	const hackThreadsNeeded = (host) => {
-		if (ns.getServerMoneyAvailable(target) / ns.getServerMaxMoney(target) < .9) {
-			return 1; // 0 or 1 just don't hack if server is not prepped
-		}
-		Math.max(Math.floor(hackPercent / ns.formulas.hacking.hackPercent(ns.getServer(target), ns.getPlayer())), 1);
-	}
 	const batchPlan = getHostsAndThreads(hackThreadsNeeded, growThreadsNeeded, weakenThreadsNeeded);
-	if (!batchPlan.weakenHosts || !batchPlan.hackHost || !batchPlan.growHost)
-	{
-		//nothing to do no room for a batch
+	if (!batchPlan.weakenHosts || !batchPlan.hackHost || !batchPlan.growHost) {
+		ns.print('No room to plan another batch');
 		return;
 	}
-
-
-
-
-	const hack = await runHack(target,host, threads_available);
-	const grow = await runGrow(target, hack.amount);
-	const weaken = await runWeaken(target, hack.threadsCommitted, grow.threadsCommitted);
-	return { server: target, promise: ns.asleep(weaken.time + 200), pid: { weaken: weaken.pid, hack: hack.pid, grow: grow.pid } };
+	batchPlan.target = target;
+	return batchPlan;
 }
 
-async function runWeaken(target, hackThreads, growThreads) {
-	const ret = { time: 0, threadsCommitted: 0, pid: 0 };
-	let security = ns.growthAnalyzeSecurity(growThreads);
-	security += ns.hackAnalyzeSecurity(hackThreads);
-	// slash the security if not at min to prep it
-	const currentSec = ns.getServerSecurityLevel(target) - ns.getServerMinSecurityLevel(target);
-	if (currentSec > 0) {
-		security += currentSec
+async function runWeaken(target, hosts) {
+	let pids = [];
+	for (const host of hosts) {
+		pids.push(await ns.exec(weaken_script, host.host, host.threads_available, target, Math.random()));
+		removeExclusion(host.host, host.ramUsed);
 	}
-	const threadsNeeded = Math.max(Math.ceil(security / ns.weakenAnalyze(1, 1)), 1);
-	const homeThreadsNeeded = Math.max(Math.ceil(security / ns.weakenAnalyze(1, getCores('home'))), 1);
-	const { host, threads_available } = getHostAndThreads(weaken_scriptRam, threadsNeeded, homeThreadsNeeded);
-	if (!host) return ret;
-	let threadToUse = Math.min(threads_available, threadsNeeded);
-	if (host === 'home') { //hurray home for grow
-		threadToUse = Math.min(threads_available, homeThreadsNeeded);
-	}
-	ret.pid = await ns.exec(weaken_script, host, threadToUse, target, Math.random());
-	ret.time = ns.formulas.hacking.weakenTime(ns.getServer(target), ns.getPlayer());
-	const message = `Weak ${host}[${threadToUse}] -> ${target} in ${ns.tFormat(ret.time)}]`;
-	if (ret.pid === 0) {
-		ns.tprint('FAILED ' + message);
-		ns.print('FAILED ' + message);
-		return ret;
-	}
-	ret.threadsCommitted = threadToUse;
-	return ret;
+	return pids;
 }
 
-async function runGrow(target, hackAmount) {
-	const ret = { time: 0, threadsCommitted: 0, pid: 0 };
-	// grow to counter the hack or just to fill up the server with money
-	const moneyToGrow = Math.max(hackAmount, ns.getServerMaxMoney(target) - ns.getServerMoneyAvailable(target));
-	const homeThreadsNeeded = Math.floor(calculateGrowThreads(ns, target, moneyToGrow, getCores('home'), { ServerGrowthRate }));
-	const threadsNeeded = Math.floor(calculateGrowThreads(ns, target, moneyToGrow, 1, { ServerGrowthRate }));
-	const { host, threads_available } = getHostAndThreads(grow_scriptRam, threadsNeeded, homeThreadsNeeded);
-	if (!host) return ret;
-	let threadToUse = Math.min(threads_available, threadsNeeded);
-	if (host === 'home') { //hurray home for grow
-		threadToUse = Math.min(threads_available, homeThreadsNeeded);
-	}
-	if (threadToUse < 1) {
-		return ret;
-	}
-	ret.pid = await ns.exec(grow_script, host, threadToUse, target, Math.random());
-	ret.time = ns.formulas.hacking.growTime(ns.getServer(target), ns.getPlayer());
-	const message = `Grow ${host}[${threadToUse}] -> ${target} in ${ns.tFormat(ret.time)}]`;
-	if (ret.pid === 0) {
-		ns.tprint('FAILED ' + message);
-		ns.print('FAILED ' + message);
-		return ret;
-	}
-	ret.threadsCommitted = threadToUse;
-	return ret;
+async function runGrow(target, host) {
+	const pid = await ns.exec(grow_script, host.host, host.threads_available, target, Math.random());
+	removeExclusion(host.host, host.ramUsed);
+	return pid;
 }
 
-async function runHack(target, host, threadToUse) {
-	const ret = { time: 0, threadsCommitted: 0, pid: 0, amount: 0 };
-	const cashingOut = ns.hackAnalyze(target) * threadToUse * ns.getServerMoneyAvailable(target);
-	ret.pid = await ns.exec(hack_script, host, threadToUse, target, Math.random());
-	ret.time = ns.formulas.hacking.hackTime(ns.getServer(target), ns.getPlayer());
-	const message = `Hack ${host}[${threadToUse}] -> ${target}[${ns.nFormat(cashingOut, "($ 0.00 a)")} in ${ns.tFormat(ret.time)}]`;
-	if (ret.pid === 0) {
-		ns.tprint('FAILED ' + message);
-		ns.print('FAILED ' + message);
-		return ret;
-	}
-	ret.amount = cashingOut;
-	ns.print(message);
-	ret.threadsCommitted = threadToUse;
-	return ret;
+async function runHack(target, host) {
+	const pid = await ns.exec(hack_script, host.host, host.threads_available, target, Math.random());
+	removeExclusion(host.host, host.ramUsed);
+	return pid;
 }
 
 const getCores = (host) => ns.getServer(host).cpuCores;
 
 function getHostsAndThreads(hackThreadFunction, growThreadFunction, weakThreadFunction) {
-	let strength = 1; // todo use strength value to fit a lower strength cycle into ram available
 	let hackHost;
 	let growHost;
 	let weakenHosts;
-	while (strength > 0) {
-		hackHost = getHostAndThreadsFunc(hack_scriptRam, hackThreadFunction, strength);
-		addExclusion(hackHost.host, hackHost.ramUsed);
-		growHost = getHostAndThreadsFunc(grow_scriptRam, growThreadFunction, strength);
-		addExclusion(growHost.host, growHost.ramUsed);
-		weakenHosts = getHostAndThreadsFunc(weaken_scriptRam, weakThreadFunction, strength, true);
+	hackHost = getHostAndThreadsFunc(hack_scriptRam, hackThreadFunction);
+	if (hackHost.host) addExclusion(hackHost.host, hackHost.ramUsed);
+	growHost = getHostAndThreadsFunc(grow_scriptRam, (host) => growThreadFunction(host, hackHost.threads_available));
+	if (growHost.host) addExclusion(growHost.host, growHost.ramUsed);
+	weakenHosts = getHostAndThreadsFunc(weaken_scriptRam, (host) => weakThreadFunction(host, hackHost.threads_available, growHost.threads_available), true);
 
-		if (!hackHost.host || !growHost.host || weakenHosts.length <= 0 ){
-			strength -= .25;
-			removeExclusion(hackHost.host, hackHost.ramUsed);
-			removeExclusion(growHost.host, growHost.ramUsed);
-		} else {
-			for (const weakenHost of weakenHosts) {
-				addExclusion(weakenHost.host, weakenHost.ramUsed);
-			}
+	if (!hackHost.host || !growHost.host || weakenHosts.length <= 0) {
+		removeExclusion(hackHost.host, hackHost.ramUsed);
+		removeExclusion(growHost.host, growHost.ramUsed);
+	} else {
+		for (const weakenHost of weakenHosts) {
+			addExclusion(weakenHost.host, weakenHost.ramUsed);
 		}
 	}
-	return {hackHost, growHost, weakenHosts};
+	return { hackHost, growHost, weakenHosts };
 }
-function getHostAndThreadsFunc(scriptRam, threadFunction, strength, hostSplit) {
-	const emptyRet =  { threads_available: 0, host: null, threadsAvailMinusNeed: 0, ramUsed: 0};
+
+function getHostAndThreadsFunc(scriptRam, threadFunction, hostSplit) {
+	const emptyRet = { threads_available: 0, host: null, threadsAvailMinusNeed: 0, ramUsed: 0 };
 	const hosts = serversForExecution.map((host) => {
 		let maxRam = ns.getServerMaxRam(host);
 		// reserve some ram for other scripts
@@ -228,7 +269,7 @@ function getHostAndThreadsFunc(scriptRam, threadFunction, strength, hostSplit) {
 			maxRam = Math.max(maxRam * .75, maxRam - 128);
 		}
 		const threads_available = Math.floor((maxRam - ns.getServerUsedRam(host) - excludedHostRam(host)) / scriptRam);
-		let threadsNeeded = threadFunction(host, strength);
+		let threadsNeeded = threadFunction(host);
 		const ramUsed = parseFloat((threadsNeeded * scriptRam).toFixed(3));
 		const threadsAvailMinusNeed = threads_available - threadsNeeded;
 		return { threads_available, host, threadsAvailMinusNeed, ramUsed };
@@ -236,22 +277,22 @@ function getHostAndThreadsFunc(scriptRam, threadFunction, strength, hostSplit) {
 	if (hosts.length <= 0) return emptyRet;
 	hosts.sort((a, b) => a.threadsAvailMinusNeed - b.threadsAvailMinusNeed);
 	if (hostSplit) {
-		const threadsNeeded = threadFunction('n00dles', strength);
-		const serversWithRamFree = hosts.filter(o=> o.threads_available > 0);
+		const threadsNeeded = threadFunction('n00dles');
+		const serversWithRamFree = hosts.filter(o => o.threads_available > 0);
 		let acc = 0;
 		let hostsAcc = [];
 		while (acc < threadsNeeded) {
-			 const s = serversWithRamFree.shift();
-			 if (!s) {
-				 // not enough servers with threads_available to fill need
-				 return [];
-			 }
-			 acc += s.threads_available;
-			 hostsAcc.push(s);
+			const s = serversWithRamFree.shift();
+			if (!s) {
+				// not enough servers with threads_available to fill need
+				return [];
+			}
+			acc += s.threads_available;
+			hostsAcc.push(s);
 		}
 		return hostsAcc;
 	}
-	// take the closet fit from front of the array or empty unless partialFit is true
+	// take the closet fit from front of the array or return empty
 	return hosts.filter(o => o.threadsAvailMinusNeed >= 0).shift() || emptyRet;
 }
 
@@ -265,5 +306,5 @@ function removeExclusion(host, ram) {
 	exclusionMap[host] = Math.max(exclusionMap[host] - ram, 0);
 }
 function excludedHostRam(host) {
-return exclusionMap[host] || 0;
+	return exclusionMap[host] || 0;
 }

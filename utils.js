@@ -1,6 +1,8 @@
 import { list_servers } from 'opened_servers.js';
 import { createSidebarItem, sidebar } from "/box/box.js"
 
+export const sleevesPortNumber = 15;
+
 export const boxTailSingleton = (ns, title, icon, height) => {
 	var res = [];
 	sidebar.querySelectorAll('div.sbitem').forEach(sbitem => res.push({ sbitem, title: sbitem.querySelector('div.head > span').innerText }));

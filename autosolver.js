@@ -69,15 +69,21 @@ function solve(type, data, server, contract, ns) {
         case "Total Ways to Sum":
             solution = totalWayToSum(data);
             break;
+        case "Total Ways to Sum II":
+            solution = solveWaysToSumII(data);
+            break;
+        case "HammingCodes: Encoded Binary to Integer":
+            solution = hammingDecode(data);
+            break;
         case "HammingCodes: Integer to encoded Binary":
             solution = hammingEncode(data);
             break;
         case "Array Jumping Game II":
-            solution = arrayJumpingGame2(data);
+            solution = arrayJumpingGameII(data);
             break;
         case "Shortest Path in a Grid":
-            // solution = shortestGridPath(data);
-            // break;
+            solution = shortestPathInAGrid(data);
+            break;
         default:
             solution = null;
             ns.print(type + ' No solution implemented');
@@ -475,200 +481,183 @@ function twts(limit, n, cache) {
     cache[n][limit] = s; return s;
 }
 
-// hamming.js: Hamming code in javascript
 /**
- * hammingEncode - encode binary string input with hamming algorithm
- * @param {String} input - binary string, '10101'
- * @returns {String} - encoded binary string
+ *
+ * @param {number[][]} input [targetNumber,[available numbers]]
+ * @returns
  */
-function hammingEncode(input) {
-    let output = input;
-    const controlBitsIndexes = [];
-    const l = input.length;
-    let i = 1;
-    let key, j, arr, temp, check;
-
-    while (l / i >= 1) {
-        controlBitsIndexes.push(i);
-        i *= 2;
+async function solveWaysToSumII(input) {
+    /**
+     *
+     * @param {number} target
+     * @param {number[]} nums
+     * @returns
+     */
+    let n = input[0];
+    let nums = input[1];
+    let table = new Array(n + 1);
+    for (let i = 0; i < n + 1; i++) {
+        table[i] = 0;
     }
+    table[0] = 1;
 
-    for (j = 0; j < controlBitsIndexes.length; j++) {
-        key = controlBitsIndexes[j];
-        arr = output.slice(key - 1).split('');
-        temp = chunk(arr, key);
-        check = (temp.reduce(function (prev, next, index) {
-            if (!(index % 2)) {
-                prev = prev.concat(next);
-            }
-            return prev;
-        }, []).reduce(function (prev, next) { return +prev + +next }, 0) % 2) ? 1 : 0;
-        output = output.slice(0, key - 1) + check + output.slice(key - 1);
-        if (j + 1 === controlBitsIndexes.length && output.length / (key * 2) >= 1) {
-            controlBitsIndexes.push(key * 2);
+    for (let i of nums) {
+        if (i >= n) {
+            continue;
         }
-    }
-
-    return output;
-}
-
-/**
- * hammingPureDecode - just removes from input parity check bits
- * @param {String} input - binary string, '10101'
- * @returns {String} - decoded binary string
- */
-function hammingPureDecode(input) {
-    const controlBitsIndexes = [];
-    const l = input.length;
-    let originCode = input;
-    let i = 1;
-    while (l / i >= 1) {
-        controlBitsIndexes.push(i);
-        i *= 2;
-    }
-
-    controlBitsIndexes.forEach(function (key, index) {
-        originCode = originCode.substring(0, key - 1 - index) + originCode.substring(key - index);
-    });
-
-    return originCode;
-}
-
-/**
- * hammingDecode - decodes encoded binary string, also try to correct errors
- * @param {String} input - binary string, '10101'
- * @returns {String} - decoded binary string
- */
-function hammingDecode(input) {
-    const controlBitsIndexes = [];
-    let sum = 0;
-    const l = input.length;
-    let i = 1;
-    let output = hammingPureDecode(input);
-    const inputFixed = hammingEncode(output);
-
-
-    while (l / i >= 1) {
-        controlBitsIndexes.push(i);
-        i *= 2;
-    }
-
-    controlBitsIndexes.forEach(function (i) {
-        if (input[i] !== inputFixed[i]) {
-            sum += i;
+        for (let j = i; j <= n; j++) {
+            table[j] += table[j - i];
         }
-    });
-
-    if (sum) {
-        output[sum - 1] === '1'
-            ? output = replaceCharacterAt(output, sum - 1, '0')
-            : output = replaceCharacterAt(output, sum - 1, '1');
+        // console.log(table);
     }
-    return output;
+    return table[n];
 }
 
-function replaceCharacterAt(str, index, character) {
-    return str.substr(0, index) + character + str.substr(index+character.length);
-}
+function hammingEncode(data) {
+    let N = Math.floor(Math.log2(data));
+    let vec = Array.from({ length: N + 1 }, (_, i) => Math.floor(data / 2 ** (N - i)) % 2);
 
-/**
- * chunk - split array into chunks
- * @param {Array} arr - array
- * @param {Number} size - chunk size
- * @returns {Array} - chunked array
- */
-function chunk(arr, size) {
-    const chunks = [];
-    let i = 0;
-    let n = arr.length;
-    while (i < n) {
-        chunks.push(arr.slice(i, i += size));
+    let masks = [
+        /*012345678901234567890123456789012345678901234567890123456*/
+        "111111111111111111111111111111111111111111111111111111111",
+        "110110101011010101010101011010101010101010101010101010101",
+        "101101100110110011001100110110011001100110011001100110011",
+        "011100011110001111000011110001111000011110000111100001111",
+        "000011111110000000111111110000000111111110000000011111111",
+        "000000000001111111111111110000000000000001111111111111111",
+        "000000000000000000000000001111111111111111111111111111111"
+    ].map(x => x.split("").map(y => Number(y)));
+
+    function hadamard(x, y) {
+        return Array.from({ length: Math.min(x.length, y.length) }, (_, i) => x[i] * y[i]);
     }
-    return chunks;
-}
+    let parities = masks.map(mask => hadamard(mask, vec).reduce((a, n) => a + n) % 2);
 
-const arrayJumpingGame2 = (data) => {
-    const intervals = data.slice();
-    intervals.sort((a,b) => {
-        return a[0] - b[0];
-    });
+    for (let i = 1; i < parities.length; ++i) { parities[0] += parities[i]; }
+    parities[0] %= 2;
 
-    const result = [];
-    let start = intervals[0][0];
-    let end = intervals[0][1];
-    for (const interval of intervals) {
-        if (interval[0] <= end) {
-            end = Math.max(end, interval[1]);
+    /*01234567890123456789012345678901234567890123456789012345678901234*/
+    let p_bit = "11101000100000001000000000000000100000000000000000000000000000001";
+
+    let output = [];
+    for (let i = 0, p = 0, d = 0; d < vec.length; ++i) {
+        if (p_bit[i] === "1") {
+            output.push(parities[p++]);
         } else {
-            result.push([start, end]);
-            start = interval[0];
-            end = interval[1];
+            output.push(vec[d++]);
         }
     }
-    result.push([start, end]);
 
-   return convert2DArrayToString(result);
-}
-function convert2DArrayToString(arr) {
-    const components = [];
-    arr.forEach((e) => {
-        let s = e.toString();
-        s = ["[", s, "]"].join("");
-        components.push(s);
-    });
-
-    return components.join(",").replace(/\s/g, "");
+    return output.join("");
 }
 
-// TODO modify to write list of UDLR instructions
-const shortestGridPath = (data) => {
-    const width = data[0].length;
-    const height = data.length;
-    const dstY = height - 1;
-    const dstX = width - 1;
 
-    const distance = new Array(height);
-    const queue = new MinHeap();
-
-    for (let y = 0; y < height; y++) {
-        distance[y] = new Array(width).fill(Infinity);
-        //prev[y] = new Array(width).fill(undefined) as [undefined];
-    }
-
-    function validPosition(y, x) {
-        return y >= 0 && y < height && x >= 0 && x < width && data[y][x] === 0;
-    }
-
-    // List in-bounds and passable neighbors
-    function* neighbors(y, x) {
-        if (validPosition(y - 1, x)) yield [y - 1, x]; // Up
-        if (validPosition(y + 1, x)) yield [y + 1, x]; // Down
-        if (validPosition(y, x - 1)) yield [y, x - 1]; // Left
-        if (validPosition(y, x + 1)) yield [y, x + 1]; // Right
-    }
-
-    // Prepare starting point
-    distance[0][0] = 0;
-    queue.push([0, 0], 0);
-
-    // Take next-nearest position and expand potential paths from there
-    while (queue.size > 0) {
-        const [y, x] = queue.pop();
-        for (const [yN, xN] of neighbors(y, x)) {
-            const d = distance[y][x] + 1;
-            if (d < distance[yN][xN]) {
-                if (distance[yN][xN] === Infinity)
-                    // Not reached previously
-                    queue.push([yN, xN], d);
-                // Found a shorter path
-                else queue.changeWeight(([yQ, xQ]) => yQ === yN && xQ === xN, d);
-                //prev[yN][xN] = [y, x];
-                distance[yN][xN] = d;
+function arrayJumpingGameII(arrayData) {
+    let n = arrayData.length;
+    let reach = 0;
+    let jumps = 0;
+    let lastJump = -1;
+    while (reach < n - 1) {
+        let jumpedFrom = -1;
+        for (let i = reach; i > lastJump; i--) {
+            if (i + arrayData[i] > reach) {
+                reach = i + arrayData[i];
+                jumpedFrom = i;
             }
         }
+        if (jumpedFrom === -1) {
+            jumps = 0;
+            break;
+        }
+        lastJump = jumpedFrom;
+        jumps++;
+    }
+    return jumps
+}
+
+
+function shortestPathInAGrid(data) {
+    let H = data.length, W = data[0].length;
+    let dist = Array.from(Array(H), () => Array(W).fill(Number.POSITIVE_INFINITY));
+    dist[0][0] = 0;
+
+    let queue = [[0, 0]];
+    while (queue.length > 0) {
+        let [i, j] = queue.shift();
+        let d = dist[i][j];
+
+        if (i > 0     && d + 1 < dist[i - 1][j] && data[i - 1][j] !== 1)
+        { dist[i - 1][j] = d + 1; queue.push([i - 1, j]); }
+        if (i < H - 1 && d + 1 < dist[i + 1][j] && data[i + 1][j] !== 1)
+        { dist[i + 1][j] = d + 1; queue.push([i + 1, j]); }
+        if (j > 0     && d + 1 < dist[i][j - 1] && data[i][j - 1] !== 1)
+        { dist[i][j - 1] = d + 1; queue.push([i, j - 1]); }
+        if (j < W - 1 && d + 1 < dist[i][j + 1] && data[i][j + 1] !== 1)
+        { dist[i][j + 1] = d + 1; queue.push([i, j + 1]); }
     }
 
-    // No path at all?
-    if (distance[dstY][dstX] === Infinity) return "";
-    return distance;
+    let path = "";
+    if (Number.isFinite(dist[H - 1][W - 1])) {
+        let i = H - 1, j = W - 1;
+        while (i !== 0 || j !== 0) {
+            let d = dist[i][j];
+
+            let new_i = 0, new_j = 0, dir = "";
+            if (i > 0     && dist[i - 1][j] < d)
+            { d = dist[i - 1][j]; new_i = i - 1; new_j = j; dir = "D"; }
+            if (i < H - 1 && dist[i + 1][j] < d)
+            { d = dist[i + 1][j]; new_i = i + 1; new_j = j; dir = "U"; }
+            if (j > 0     && dist[i][j - 1] < d)
+            { d = dist[i][j - 1]; new_i = i; new_j = j - 1; dir = "R"; }
+            if (j < W - 1 && dist[i][j + 1] < d)
+            { d = dist[i][j + 1]; new_i = i; new_j = j + 1; dir = "L"; }
+
+            i = new_i; j = new_j;
+            path = dir + path;
+        }
+    }
+
+    return path;
+}
+
+function hammingDecode(_data) {
+    let _build = _data.split(""); // ye, an array again
+    let _testArray = []; //for the "tests". if any is false, it is been altered data, will check and fix it later
+    let _sum_parity = Math.ceil(Math.log2(_data.length)); // excluding first bit
+    let count = (arr, val) => arr.reduce((a, v) => (v === val ? a + 1 : a), 0); // count.... again ;)
+    let _overallParity = _build.splice(0, 1).join(""); // remove first index, for checking and to use the _build properly later
+    _testArray.push((_overallParity === (count(_build, "1") % 2).toString())); // checking the "overall" parity
+    for (var i = 0; i < _sum_parity; i++) {
+        let _tempIndex = Math.pow(2, i) - 1 // get the parityBits Index
+        let _tempStep = _tempIndex + 1 // set the stepsize
+        let _tempData = [..._build] // "copy" the build-data
+        let _tempArray = [] // init empty array for "testing"
+        while (_tempData[_tempIndex] !== undefined) { // extract from the copied data until the "starting" index is undefined
+            var _temp = [..._tempData.splice(_tempIndex, _tempStep * 2)] // extract 2*stepsize
+            _tempArray.push(..._temp.splice(0, _tempStep)) // and cut again for keeping first half
+        }
+        let _tempParity = _tempArray.shift() // and cut the first index for checking with the rest of the data
+        _testArray.push(((_tempParity === (count(_tempArray, "1") % 2).toString()))) // is the _tempParity the calculated data?
+    }
+    let _fixIndex = 0; // init the "fixing" index amd start with -1, bc we already removed the first bit
+    for (let i = 1; i < _sum_parity + 1; i++) {
+        _fixIndex += (_testArray[i]) ? 0 : (Math.pow(2, i) / 2)
+    }
+    _build.unshift(_overallParity)
+    // fix the actual hammingcode if there is an error
+    if (_fixIndex > 0 && _testArray[0] === false) { // if the overall is false and the sum of calculated values is greater equal 0, fix the corresponding hamming-bit
+        _build[_fixIndex] = (_build[_fixIndex] === "0") ? "1" : "0"
+    }
+    else if (_testArray[0] === false) { // otherwise, if the the overall_parity is only wrong, fix that one
+        _overallParity = (_overallParity === "0") ? "1" : "0"
+    }
+    else if (_testArray[0] === true && _testArray.some((truth) => truth === false)) {
+        return 0 // uhm, there's some strange going on... 2 bits are altered? How?
+    }
+    // oof.. halfway through... we fixed the altered bit, now "extract" the parity from the build and parse the binary data
+    for (let i = _sum_parity; i >= 0; i--) { // start from the last parity down the starting one
+        _build.splice(Math.pow(2, i), 1)
+    }
+    _build.splice(0, 1)
+    return parseInt(_build.join(""), 2)
 }

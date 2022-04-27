@@ -1,19 +1,17 @@
-import {boxTailSingleton} from "./utils";
+import { boxTailSingleton, sleevesPortNumber } from "./utils";
+import { getAugsRemainingAtFaction, factionsWork } from "./augments";
 
 const interval = 5000; // Update (tick) this often
 const minTaskWorkTime = 29000; // Sleeves assigned a new task should stick to it for at least this many milliseconds
-const works = ['security', 'field', 'hacking']; // When doing faction work, we prioritize physical work since sleeves tend towards having those stats be highest
-
-let cachedCrimeStats, workByFaction; // Cache of crime statistics and which factions support which work
+let workByFaction; // Cache of crime statistics and which factions support which work
 let task, lastStatusUpdateTime, lastPurchaseTime, lastPurchaseStatusUpdate, availableAugs, cacheExpiry, lastReassignTime; // State by sleeve
-let playerInfo, numSleeves, ownedSourceFiles;
+let playerInfo, numSleeves;
 let options;
 
 const argsSchema = [
     ['min-shock-recovery', 97], // Minimum shock recovery before attempting to train or do crime (Set to 100 to disable, 0 to recover fully)
     ['shock-recovery', 0.05], // Set to a number between 0 and 1 to devote that ratio of time to periodic shock recovery (until shock is at 0)
     ['crime', null], // If specified, sleeves will perform only this crime regardless of stats
-    ['homicide-chance-threshold', 0.45], // Sleeves will automatically start homicide once their chance of success exceeds this ratio
     ['aug-budget', 0.1], // Spend up to this much of current cash on augs per tick (Default is high, because these are permanent for the rest of the BN)
     ['buy-cooldown', 60 * 1000], // Must wait this may milliseconds before buying more augs for a sleeve
     ['min-aug-batch', 20], // Must be able to afford at least this many augs before we pull the trigger (or fewer if buying all remaining augs)
@@ -29,8 +27,7 @@ export async function main(ns) {
     options = ns.flags(argsSchema);
     ns.disableLog('getServerMoneyAvailable');
     ns.disableLog('asleep');
-    ns.clearLog();
-    boxTailSingleton(ns, 'sleeves', '⛹⛹⛹⛹⛹⛹⛹', '200px');
+    boxTailSingleton(ns, 'sleeves', '⛹⛹⛹⛹⛹⛹⛹⛹', '200px');
     // Ensure the global state is reset (e.g. after entering a new bitnode)
     task = [];
     lastStatusUpdateTime = [];
@@ -40,12 +37,11 @@ export async function main(ns) {
     cacheExpiry = [];
     lastReassignTime = [];
     workByFaction = {};
-    cachedCrimeStats = {};
     // Start the main loop
     while (true) {
         try { await mainLoop(ns); }
         catch (error) {
-            ns.print(`WARNING: An error was caught (and suppressed) in the main loop: ${error?.toString() || String(error)}`, false, 'warning');
+            ns.print(`WARNING: An error was caught (and suppressed) in the main loop: ${JSON.stringify(error)}`, false, 'warning');
         }
         await ns.asleep(interval);
     }
@@ -54,12 +50,24 @@ export async function main(ns) {
 /** @param {NS} ns
  * Main loop that gathers data, checks on all sleeves, and manages them. */
 async function mainLoop(ns) {
+    ns.clearLog();
     try {
         const sleeveData = JSON.parse(ns.read('/tmp/sleeves_static.txt'));
         numSleeves = sleeveData.getNumSleeves;
     } catch { }
     // Update info
-    numSleeves = numSleeves || 7;
+    let readMore = true;
+    let portData = [];
+    while (readMore) {
+        let portRead = ns.readPort(sleevesPortNumber);
+        if ('NULL PORT DATA' !== portRead) {
+            portData.push(portRead);
+        } else {
+            readMore = false;
+        }
+    }
+    // TODO assign sleeves to get reps from port data.
+    numSleeves = numSleeves || 8;
     playerInfo = ns.getPlayer();
     let budget = playerInfo.money * options['aug-budget'];
 
@@ -150,7 +158,7 @@ async function pickSleeveTask(ns, i, sleeve) {
         // TODO: We should be able to borrow logic from work-for-factions.js to have more sleeves work for useful factions / companies
         // We'll cycle through work types until we find one that is supported. TODO: Auto-determine the most productive faction work to do.
         const faction = playerInfo.currentWorkFactionName;
-        const work = works[workByFaction[faction] || 0];
+        const work = factionsWork[faction][0];
         return [`work for faction '${faction}' (${work})`, ns.sleeve.setToFactionWork, [i, faction, work],
             /*   */ `helping earn rep with faction ${faction} by doing ${work}.`];
     }
@@ -158,13 +166,28 @@ async function pickSleeveTask(ns, i, sleeve) {
         return [`work for company '${playerInfo.companyName}'`, ns.sleeve.setToCompanyWork, [i, playerInfo.companyName],
             /*   */ `helping earn rep with company ${playerInfo.companyName}.`];
     }
+    if (ns.fileExists('/tmp/ingang.txt')) {
+        const factionAugs = getAugsRemainingAtFaction(ns);
+        const factionsWithAugs = Object.entries(factionAugs)
+            .filter(([faction, augList]) =>
+                augList.filter(aug => aug !== 'NeuroFlux Governor').length > 0 // work for factions with augs other than NFG
+                && faction !== playerInfo.currentWorkFactionName // sleeve 0 is working for this faction
+                // && !allGangFactions.includes(faction) // can't work for competing gangs
+                && playerInfo.factions.includes(faction) // player in faction
+                && faction !== 'Bladeburners'
+                && faction !== 'Slum Snakes') // can't work for Bladeburners
+            .map(([faction]) => faction);
+        let faction = factionsWithAugs[i]; // just use sleeve index to pick a faction to work for
+        if (faction) {
+            const work = factionsWork[faction][0];
+            return [`work for faction '${faction}' (${work})`, ns.sleeve.setToFactionWork, [i, faction, work],
+                /*   */ `helping earn rep with faction ${faction} by doing ${work}.`];
+        }
+    }
     // Finally, do crime for Karma. Homicide has the rate gain, if we can manage a decent success rate.
-    // TODO: This is less useful after gangs are unlocked, can we think of better things to do afterwards?
-    let crime = options.crime || (await calculateCrimeChance(ns, sleeve, "homicide")) >= options['homicide-chance-threshold'] ? 'homicide' : 'mug';
-    return [`commit ${crime} `, ns.sleeve.setToCommitCrime, [i, crime],
-        /*   */ `committing ${crime} with chance ${((await calculateCrimeChance(ns, sleeve, crime)) * 100).toFixed(2)}% ` +
-        /*   */ (options.crime || crime === "homicide" ? '' : // If auto-criming, user may be curious how close we are to switching to homicide
-            /*   */     ` (Note: Homicide chance would be ${((await calculateCrimeChance(ns, sleeve, "homicide")) * 100).toFixed(2)}% `)];
+    let crime = getBestCrime(ns, sleeve, ns.heart.break() > -54000);
+    return [`commit ${crime.name} `, ns.sleeve.setToCommitCrime, [i, crime.name],
+        /*   */ `committing ${crime.name} with rate ${(crime.rate).toFixed(2)}`];
 }
 
 /** @param {NS} ns
@@ -193,11 +216,9 @@ async function setSleeveTask(ns, i, designatedTask, command, args) {
 
 /** @param {NS} ns
  * @param sleeve
- * @param crimeName
- * Calculate the chance a sleeve has of committing homicide successfully. */
-async function calculateCrimeChance(ns, sleeve, crimeName) {
-    // If not in the cache, retrieve this crime's stats
-    const crimeStats = cachedCrimeStats[crimeName] ?? (cachedCrimeStats[crimeName] = ns.getCrimeStats(crimeName));
+ * @param crimeStats
+ * Calculate the chance a sleeve has of committing crime successfully. */
+function calculateSleeveCrimeChance(ns, sleeve, crimeStats) {
     let chance =
         (crimeStats.hacking_success_weight || 0) * sleeve.hacking +
         (crimeStats.strength_success_weight || 0) * sleeve.strength +
@@ -208,4 +229,26 @@ async function calculateCrimeChance(ns, sleeve, crimeName) {
     chance /= 975;
     chance /= crimeStats.difficulty;
     return Math.min(chance, 1);
+}
+
+const recommendedCrimes = ["shoplift", "rob store", "mug", "traffick arms", "homicide", "grand theft auto", "kidnap", "assassinate", "heist"]
+function getBestCrime(ns, sleeve, getKarma) {
+    let bestCrimeStats;
+    let crimeRate = -1;
+    let crimeStats;
+    for (const crime of recommendedCrimes) {
+        crimeStats = ns.getCrimeStats(crime);
+        crimeStats.name = crime;
+        crimeStats.chance = calculateSleeveCrimeChance(ns, sleeve, crimeStats);
+        crimeStats.rate = crimeStats.chance * (getKarma ? crimeStats.karma : crimeStats.money) / crimeStats.time * 1000;
+
+        //ns.print(JSON.stringify(crimeStats));
+        if (crimeStats.rate > crimeRate) {
+            crimeRate = crimeStats.rate;
+            bestCrimeStats = crimeStats;
+            //  ns.print(`next crime ${bestCrimeStats.name} @ ${(getKarma ? bestCrimeStats.rate.toPrecision(2) : ns.nFormat(bestCrimeStats.rate, '0.0'))} ${(getKarma ? 'karma' : '$')}/s`);
+        }
+    }
+    ns.print(`next crime ${bestCrimeStats.name} @ ${(getKarma ? bestCrimeStats.rate.toPrecision(2) : ns.nFormat(bestCrimeStats.rate, '0.0'))} ${(getKarma ? 'karma' : '$')}/s`);
+    return bestCrimeStats;
 }

@@ -139,7 +139,7 @@ export async function main(ns) {
         let configGangIndex = preferredEarlyFactionOrder.findIndex(f => f === "Slum Snakes");
         if (configGangIndex !== -1) // If we're in a gang, don't need to earn an invite to slum snakes anymore
             preferredEarlyFactionOrder.splice(configGangIndex, 1);
-        allGangFactions = ["Tetrads", "The Black Hand", "The Syndicate", "The Dark Army", "Speakers for the Dead", "NiteSec"];
+        allGangFactions = ["Slum Snakes", "Tetrads", "The Black Hand", "The Syndicate", "The Dark Army", "Speakers for the Dead", "NiteSec"];
     }
     mostExpensiveAugByFaction = Object.fromEntries(factionList.map(f => [f, dictFactionAugs[f]
         .filter(aug => !ownedAugmentations.includes(aug))
@@ -357,7 +357,7 @@ async function earnFactionInvite(ns, factionName) {
         && !(reqHackingOrCombat.includes(factionName) && player.hacking >= requiredHackByFaction[factionName])) { // Some special-case factions (just 'Daedalus' for now) require *either* hacking *or* combat
         ns.print(`${reasonPrefix} you have insufficient combat stats. Need: ${requirement} of each, ` +
             `Have Str: ${player.strength}, Def: ${player.defense}, Dex: ${player.dexterity}, Agi: ${player.agility}`);
-        const em = requirement / 50; // Hack: A rough heuristic suggesting we need an additional x1 multi for every ~50 pysical stat points we wish to grind out in a reasonable amount of time. TODO: Be smarter
+        const em = requirement / 30; // Hack: A rough heuristic suggesting we need an additional x1 multi for every ~50 physical stat points we wish to grind out in a reasonable amount of time. TODO: Be smarter
         if (!crimeFocus && (player.strength_exp_mult * player.strength_mult < em || player.defense_exp_mult * player.defense_mult < em ||
             player.dexterity_exp_mult * player.dexterity_mult < em || player.agility_exp_mult * player.agility_mult < em))
             return ns.print("Physical mults / exp_mults are too low to increase stats in a reasonable amount of time");

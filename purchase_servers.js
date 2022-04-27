@@ -85,6 +85,10 @@ export async function main(ns) {
         ns.print('Not buying hacknet servers in bitnode with money multi of ' + multis.HacknetNodeMoney);
         return;
     }
+
+    //
+    //  hashrate(h/s) / 4(h) * 1e6($) === $/s
+    // if (hashdollar($/s) * 60(s/m) * 60(m/h) * 1 (h) > upgradecost($)) upgrade
     const maxCores = ns.formulas.hacknetNodes.coreUpgradeCost(1, 15);
     const maxRam = ns.formulas.hacknetNodes.ramUpgradeCost(1, 6);
     const maxLevel = ns.formulas.hacknetNodes.levelUpgradeCost(1, 199);
