@@ -26,7 +26,7 @@ export async function main(pns) {
   ns.disableLog('gang.canRecruitMember');
   ns.clearLog();
   // ns.tail();
-  boxTailSingleton(ns, 'gangum', '\u270A', '500px');
+  boxTailSingleton(ns, 'gangum', '\u270A', '200px');
   if (!ns.fileExists('/tmp/ingang.txt')) {
     ns.print('not in gang');
     return;

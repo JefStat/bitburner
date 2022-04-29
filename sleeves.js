@@ -9,10 +9,10 @@ let playerInfo, numSleeves;
 let options;
 
 const argsSchema = [
-    ['min-shock-recovery', 97], // Minimum shock recovery before attempting to train or do crime (Set to 100 to disable, 0 to recover fully)
-    ['shock-recovery', 0.05], // Set to a number between 0 and 1 to devote that ratio of time to periodic shock recovery (until shock is at 0)
+    ['min-shock-recovery', 98], // Minimum shock recovery before attempting to train or do crime (Set to 100 to disable, 0 to recover fully)
+    ['shock-recovery', 0.15], // Set to a number between 0 and 1 to devote that ratio of time to periodic shock recovery (until shock is at 0)
     ['crime', null], // If specified, sleeves will perform only this crime regardless of stats
-    ['aug-budget', 0.1], // Spend up to this much of current cash on augs per tick (Default is high, because these are permanent for the rest of the BN)
+    ['aug-budget', 1], // Spend up to this much of current cash on augs per tick (Default is high, because these are permanent for the rest of the BN)
     ['buy-cooldown', 60 * 1000], // Must wait this may milliseconds before buying more augs for a sleeve
     ['min-aug-batch', 20], // Must be able to afford at least this many augs before we pull the trigger (or fewer if buying all remaining augs)
 ];
@@ -150,6 +150,12 @@ async function pickSleeveTask(ns, i, sleeve) {
     // Must synchronize first iif you haven't maxed memory on every sleeve.
     if (sleeve.sync < 100)
         return ["synchronize", ns.sleeve.setToSynchronize, [i], `syncing... ${sleeve.sync.toFixed(2)}%`];
+    // must crime till gangs can be unlocked
+    if (ns.heart.break() > -54000) {
+        let crime = getBestCrime(ns, sleeve, true);
+        return [`commit ${crime.name} `, ns.sleeve.setToCommitCrime, [i, crime.name],
+            /*   */ `committing ${crime.name} with rate ${(crime.rate).toFixed(2)}`];
+    }
     // Opt to do shock recovery if above the --min-shock-recovery threshold, or if above 0 shock, with a probability of --shock-recovery
     if (sleeve.shock > options['min-shock-recovery'] || sleeve.shock > 0 && options['shock-recovery'] > 0 && Math.random() < options['shock-recovery'])
         return ["recover from shock", ns.sleeve.setToShockRecovery, [i], `recovering from shock... ${sleeve.shock.toFixed(2)}%`];

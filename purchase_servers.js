@@ -1,5 +1,5 @@
 import { boxTailSingleton, copyHackingFiles, tryGetBitNodeMultipliers } from "utils.js"
-
+import {getOwnedAugmentationsStatic} from 'augments.js';
 /** @param {NS} ns **/
 export async function main(ns) {
     ns.disableLog('sleep');
@@ -51,13 +51,15 @@ export async function main(ns) {
     }
     function purchaseTor(player) {
         if (player.money > 200000 && !player.tor) {
-            if (ns.purchaseTor())
+            if (ns.purchaseTor()) {
                 ns.print('purchased TOR');
+                player.tor = true;
+            }
         }
         purchasePortHacks(player);
     }
     purchaseTor(player);
-    if (bitNodeN === 2 && player.hacking < 100) {
+    if ([2, 6, 7, 8].includes(bitNodeN) && player.hacking < 200) {
         ns.print('Not buying servers in bitnode 2... yet');
     } else {
         // PurchasedServerMaxRam
@@ -79,37 +81,5 @@ export async function main(ns) {
             }
             await ns.sleep(3000);
         }
-    }
-
-    if (multis.HacknetNodeMoney < .8) {
-        ns.print('Not buying hacknet servers in bitnode with money multi of ' + multis.HacknetNodeMoney);
-        return;
-    }
-
-    //
-    //  hashrate(h/s) / 4(h) * 1e6($) === $/s
-    // if (hashdollar($/s) * 60(s/m) * 60(m/h) * 1 (h) > upgradecost($)) upgrade
-    const maxCores = ns.formulas.hacknetNodes.coreUpgradeCost(1, 15);
-    const maxRam = ns.formulas.hacknetNodes.ramUpgradeCost(1, 6);
-    const maxLevel = ns.formulas.hacknetNodes.levelUpgradeCost(1, 199);
-    const maxHackNetUpgradeCost_preAug = maxCores + maxLevel + maxRam;
-    // Start the hacknet node purchases
-    while (ns.hacknet.getPurchaseNodeCost() < 1000000) {
-        player = ns.getPlayer();
-        purchaseTor(player);
-        let nodeCost = ns.hacknet.getPurchaseNodeCost();
-
-        // Purchase the nodes when we have enough money to do so
-        if (player.money > (nodeCost + maxHackNetUpgradeCost_preAug)) {
-
-            const purchaseIndex = ns.hacknet.purchaseNode();
-            ns.print(`purchased hacknet-${purchaseIndex}`)
-            ns.hacknet.upgradeLevel(purchaseIndex, 199);
-            ns.hacknet.upgradeRam(purchaseIndex, 6);
-            ns.hacknet.upgradeCore(purchaseIndex, 15);
-        }
-
-        // wait a few seconds before we have them all
-        await ns.sleep('5000');
     }
 }

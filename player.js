@@ -22,5 +22,10 @@ export async function main(pns) {
         if (!ns.fileExists('/tmp/incorp.txt') && ns.getServerMoneyAvailable('home') > 150_000_000_000) {
             ns.exec('megacorp.js', 'home');
         }
+        const player = ns.getPlayer();
+        if (!player.factions.includes("Bladeburners")
+            && (player.strength > 100 && player.defense > 100 && player.dexterity > 100 || player.agility > 100)) {
+            ns.exec('joinBladeburners.js', 'home');
+        }
     }
 }

@@ -34,6 +34,7 @@ export async function main(pns) {
 	await writeServers('', 'home');
 	ns.exec('ensureRoot.js', 'home');
 	ns.exec('purchase-servers.js', 'home');
+	ns.exec('hacknet.js', 'home');
 	ns.exec('player.js', 'home');
 	ns.exec('sleeves.js', 'home');
 	ns.exec('megacorp.js', 'home');

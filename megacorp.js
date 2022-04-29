@@ -6,7 +6,7 @@ export const argsSchema = [
 	['no-expansion', false], // If this flag is set, do not expand to new industries. Just work on what we have.
 	['reserve-amount', 1e9], // Don't spend the corporation's last $billion if we can help it.
 	['v', false], // Print extra log messages.
-	['verbose', true],
+	['verbose', false],
 	['can-accept-funding', true], // When we run low on money, should we look for outside funding?
 	['can-go-public', true], // If we can't get private funding, should we go public?
 	['issue-shares', 0], // If we go public, how many shares should we issue?
@@ -97,7 +97,6 @@ const industries = [
 ];
 
 // Global state
-let dictSourceFiles;
 /** @type {CorporationInfo} */
 let myCorporation;
 let options;
@@ -116,7 +115,6 @@ export async function main(ns) {
 	ns.disableLog('sleep');
 	ns.clearLog();
 	// ns.tail();
-	boxTailSingleton(ns, 'corp', '🏠', '400px');
 	c = ns.corporation;
 	// Pull in any information we only need at startup.
 	options = ns.flags(argsSchema);
@@ -130,6 +128,7 @@ export async function main(ns) {
 		myCorporation = c.getCorporation();
 	}
 	await ns.write('/tmp/incorp.txt', '', 'w');
+	boxTailSingleton(ns, 'corp', '🏠', '400px');
 	// If we already have a corporation, make sure we didn't leave any workers waiting for assignment.
 	for (const division of myCorporation.divisions) {
 		for (const city of division.cities) {

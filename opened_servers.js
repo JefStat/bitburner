@@ -4,7 +4,8 @@ function scan(ns, parent, server, list) {
         if (parent == child) {
             continue;
         }
-        list.push(child);
+        if (child.indexOf('hacknet-node') < 0)
+            list.push(child);
         scan(ns, server, child, list);
     }
 }
