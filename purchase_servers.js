@@ -82,4 +82,42 @@ export async function main(ns) {
             await ns.sleep(3000);
         }
     }
+
+    if (multis.HacknetNodeMoney < .8) {
+        ns.print('Not buying hacknet servers in bitnode with money multi of ' + multis.HacknetNodeMoney);
+        return;
+    }
+    const maxCores = ns.formulas.hacknetNodes.coreUpgradeCost(1, 15);
+    const maxRam = ns.formulas.hacknetNodes.ramUpgradeCost(1, 6);
+    const maxLevel = ns.formulas.hacknetNodes.levelUpgradeCost(1, 199);
+    const maxHackNetUpgradeCost_preAug = maxCores + maxLevel + maxRam;
+    // Start the hacknet node purchases
+    // 4 hash = 1_000_000 $
+
+    //Hacknet Node NIC Architecture Neural-Upload -10%
+    //Hacknet Node CPU Architecture Neural-Upload -15%
+    const playerAugs = getOwnedAugmentationsStatic();
+    const CPU = playerAugs.includes('Hacknet Node CPU Architecture Neural-Upload') ? .15:0;
+    const NIC = playerAugs.includes('Hacknet Node NIC Architecture Neural-Upload') ? .1:0;
+    while (ns.hacknet.numNodes() < Math.floor(20 * (.5+NIC+CPU))) {
+        player = ns.getPlayer();
+        purchaseTor(player);
+        let nodeCost = ns.hacknet.getPurchaseNodeCost();
+
+        // Purchase the nodes when we have enough money to do so
+        if (player.money > (nodeCost + maxHackNetUpgradeCost_preAug)) {
+
+            const purchaseIndex = ns.hacknet.purchaseNode();
+            const name = `hacknet-node-${purchaseIndex}`;
+            await copyHackingFiles(ns, { hostname: name, hasAdminRights: true });
+
+            ns.print(`purchased ${name}`)
+            ns.hacknet.upgradeLevel(purchaseIndex, 199);
+            ns.hacknet.upgradeRam(purchaseIndex, 6);
+            ns.hacknet.upgradeCore(purchaseIndex, 15);
+        }
+
+        // wait a few seconds before we have them all
+        await ns.sleep('5000');
+    }
 }

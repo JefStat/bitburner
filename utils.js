@@ -3,25 +3,30 @@ import { createSidebarItem, sidebar } from "/box/box.js"
 
 export const sleevesPortNumber = 15;
 
-export const boxTailSingleton = (ns, title, icon, height) => {
+export const boxTailSingleton = (ns, title, icon, height, pinned = "<div/>") => {
 	var res = [];
 	sidebar.querySelectorAll('div.sbitem').forEach(sbitem => res.push({ sbitem, title: sbitem.querySelector('div.head > span').innerText }));
 	let box = res.find(o => o.title === title);
 	if (box) {
 		box = box.sbitem;
 	} else {
-		box = createSidebarItem(title, "<div/>", icon);
+		box = createSidebarItem(title, pinned, icon);
 	}
 	if (height) box.style.height = height;
 
+	const _clearLog = ns.clearLog;
+	ns.clearLog = () => {
+		_clearLog();
+		box.logDiv = box.body.querySelector('div.log');
+		if (box.logDiv) box.logDiv.replaceChildren([]);
+	}
+	const logEntryLimit = 500;
 	const _print = ns.print;
 	ns.print = (m) => {
 		box.log(`<span>${m}</span>`);
 		_print(m);
 		box.logDiv = box.body.querySelector('div.log');
-		if (box.logDiv.childElementCount > 500) {
-			box.logDiv.replaceChildren(...Array.from(box.logDiv.children).slice(-100))
-		}
+		while (box.logDiv.children.length > logEntryLimit) box.logDiv.children[0].remove();
 	}
 }
 
@@ -82,7 +87,7 @@ export async function copyHackingFiles(ns, server) {
 		}
 	}
 }
-export function tryGetBitNodeMultipliers(ns){
+export function tryGetBitNodeMultipliers(ns) {
 	return JSON.parse(ns.read(`/tmp/getBitNodeMultipliers.txt`));
 }
 export function inGangStatic(ns) {

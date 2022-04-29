@@ -1,5 +1,5 @@
 import { initAugments } from "./augments";
-
+import { boxTailSingleton} from "utils.js"
 let ns;
 
 /** @param {NS} pns **/
@@ -7,8 +7,9 @@ export async function main(pns) {
 	ns = pns;
 	ns.disableLog('sleep');
 	ns.disableLog('scan');
+	boxTailSingleton(ns, 'init', '🖳', '100px');
 	ns.clearLog();
-	ns.tail();//todo us box
+
 	const tmpFiles = ns.ls('home', 'tmp');
 	for (const tmpFp of tmpFiles) {
 		ns.rm(tmpFp, 'home');
@@ -35,6 +36,7 @@ export async function main(pns) {
 	ns.exec('ensureRoot.js', 'home');
 	ns.exec('purchase-servers.js', 'home');
 	ns.exec('hacknet.js', 'home');
+	ns.exec('spend-hacknet-hash.js', 'home');
 	ns.exec('player.js', 'home');
 	ns.exec('sleeves.js', 'home');
 	ns.exec('megacorp.js', 'home');
