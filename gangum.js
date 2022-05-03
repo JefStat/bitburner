@@ -15,6 +15,8 @@ const memberNames = [
   'Mixer', 'Hip', 'Brownstone',
   'Sal', 'Right Hand', 'Left Shark'
 ];
+const combatAugmentPriorityOrder = ['Bionic Arms', 'Nanofiber Weave', 'Bionic Spine', 'Synfibril Muscle', 'BrachiBlades'];
+
 /** @param {NS} pns **/
 export async function main(pns) {
   ns = pns;
@@ -75,9 +77,16 @@ export async function main(pns) {
 }
 
 function isWartime() {
+  // no need for war any more
+  if (gang.territory === 1) {
+    // ns.print('Territory maxed No more war');
+    warTracker.nextTick = Date.now();
+    return false;
+  }
   // too powerful don't get more power
   if (maxOtherGangPower * 1.5 < gang.power) {
     warTracker.nextTick = Date.now();
+    // ns.print('Power higher enough no more warefare');
     return false;
   }
   if (warTracker.prevPower === -1) {
@@ -126,19 +135,38 @@ function war() {
 }
 
 function equip() {
-  const equipmentNames = ns.gang.getEquipmentNames();
-  for (const member of members) {
-    for (const equipName of equipmentNames) {
-      const stats = ns.gang.getEquipmentStats(equipName);
-      if (ns.gang.getEquipmentCost(equipName) < ns.getServerMoneyAvailable('home') * .5) {
-        if (!isEarlyGang || (gang.isHacking && (stats.hack || stats.cha)) || (!gang.isHacking && (stats.str || stats.def || stats.cha))) {
-          if (ns.gang.purchaseEquipment(member.name, equipName)) {
-            ns.print(`Purchased ${equipName} for ${member.name}`);
+  const nameStatsMap = {};
+  let equipmentNames = ns.gang.getEquipmentNames();
+  for (const equipName of equipmentNames) {
+    nameStatsMap[equipName] = ns.gang.getEquipmentStats(equipName);
+  }
+  const combatGear = Object.entries(nameStatsMap).filter(([e, stats]) => stats.str || stats.def || stats.cha);
+  for (const [equipName] of combatGear) {
+    for (const member of members) {
+      if (!member.upgrades.includes(equipName) && ns.getServerMoneyAvailable('home')) {
+        if (ns.gang.purchaseEquipment(member.name, equipName)) {
+          ns.print(`Purchased ${equipName} for ${member.name}`);
+          if (combatAugmentPriorityOrder.includes(equipName)) {
+            ns.toast(`Purchased ${equipName} for ${member.name}`, 'success', 10000);
           }
         }
       }
     }
   }
+  // pure agi gear is useless for a combat gang
+  // equipmentNames = equipmentNames.filter(name => name !== 'Bionic Legs');
+  // for (const member of members) {
+  //   for (const equipName of equipmentNames) {
+  //     const stats = ns.gang.getEquipmentStats(equipName);
+  //     if (ns.gang.getEquipmentCost(equipName) < ns.getServerMoneyAvailable('home') * .5) {
+  //       if (!isEarlyGang || (gang.isHacking && (stats.hack || stats.cha)) || (!gang.isHacking && (stats.str || stats.def || stats.cha))) {
+  //         if (ns.gang.purchaseEquipment(member.name, equipName)) {
+  //           ns.print(`Purchased ${equipName} for ${member.name}`);
+  //         }
+  //       }
+  //     }
+  //   }
+  // }
 }
 
 function ascend() {

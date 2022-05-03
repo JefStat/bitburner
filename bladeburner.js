@@ -10,12 +10,12 @@ const simulacrumAugName = "The Blade's Simulacrum"; // This augmentation lets yo
 const costAdjustments = {
     "Reaper": 1.2, // Combat boost. Early effect is paltry (because stats are so low), will get plenty of points late game
     "Evasive Systems": 1.2, // Dex/Agi boost. Mildly deprioritized for same reasoning as above.
-    "Overclock": 1.2, // While useful when playing manually, in practice, constant automation makes us not notice/care about completion times
+    "Overclock": 0.8, // Faster ops faster skillups faster rank. Stamina becomes less of an issue as you get late into BB. Might run out of ops instead
     "Cloak": 1.5, // Cheap, and stealth ends up with plenty of boost, so we don't need to invest in Cloak as much.
-    "Hyperdrive": 2, // Improves stats gained, but not Rank gained. Less useful if training outside of BB
-    "Tracer": 2, // Only boosts Contract success chance, which are relatively easy to begin with.
-    "Cyber's Edge": 5, // Boosts stamina, but contract counts are much more limiting than stamina, so isn't really needed
-    "Hands of Midas": 10 // Improves money gain. It is assumed that Bladeburner will *not* be a main source of income
+    "Hyperdrive": 100, // Improves stats gained, but not Rank gained. Training limit is default 0
+    "Tracer": 100, // Only boosts Contract success chance, which are relatively easy to begin with.
+    "Cyber's Edge": 3, // Boosts stamina, more stam more regen, but contract counts can be more limiting than stamina
+    "Hands of Midas": 100 // Improves money gain. It is assumed that Bladeburner will *not* be a main source of income
 };
 
 // Some bladeburner info gathered at startup and cached
@@ -27,9 +27,6 @@ const argsSchema = [
     ['success-threshold', 0.90], // Attempt the best action whose minimum chance of success exceeds this threshold
     ['chaos-recovery-threshold', 50], // Prefer to do "Stealth Retirement" operations to reduce chaos when it reaches this number
     ['max-chaos', 100], // If chaos exceeds this amount in every city, we will reluctantly resort to diplomacy to reduce it.
-    ['toast-upgrades', false], // Set to true to toast each time a skill is upgraded
-    ['toast-operations', false], // Set to true to toast each time we switch operations
-    ['toast-relocations', false], // Set to true to toast each time we change cities
     ['low-stamina-pct', 0.5], // Switch to no-stamina actions when we drop below this stamina percent
     ['high-stamina-pct', 0.6], // Switch back to stamina-consuming actions when we rise above this stamina percent
     ['training-limit', 0], // Don't bother training more than this many times, since Training is slow and earns no rank
@@ -55,7 +52,7 @@ export async function main(ns) {
         return ns.print("ERROR: no in Bladeburner yet");
     }
     boxTailSingleton(ns, 'Bladeburner', '🗡', '200px');
-
+    ns.clearLog();
     // Gather one-time info such as contract and operation names
     await gatherBladeburnerInfo(ns);
     // Start the main loop which monitors stats and changes activities as needed
@@ -91,7 +88,7 @@ async function gatherBladeburnerInfo(ns) {
         remainingBlackOpsNames.map(n => `${n} (${blackOpsRanks[n]})`).join(", "));
     maxRankNeeded = blackOpsRanks[remainingBlackOpsNames[remainingBlackOpsNames.length - 1]];
     // Check if we have the aug that lets us do bladeburner while otherwise busy
-    haveSimulacrum = getOwnedAugmentationsStatic(ns).includes("${simulacrumAugName}");
+    haveSimulacrum = getOwnedAugmentationsStatic(ns).includes(simulacrumAugName);
     // Initialize some flags that may change over time
     lastAssignedTask = null;
     lastBlackOpReady = false; // Flag will track whether we've notified the user that the last black-op is ready
@@ -337,21 +334,25 @@ async function mainLoop(ns) {
         operationNames.includes(bestActionName) ? "Operation" : "General Action";
     const success = ns.bladeburner.startAction(bestActionType, bestActionName);
     const expectedDuration = ns.bladeburner.getActionTime(bestActionType, bestActionName);
-    ns.print((success ? `INFO: Switched to Bladeburner ${bestActionType} "${bestActionName}" (${reason}). ETA: ${ns.tFormat(expectedDuration)}` :
+    const successMsg = `INFO: Switched to Bladeburner ${bestActionType} "${bestActionName}" (${reason}). ETA: ${ns.tFormat(expectedDuration)}`;
+    ns.print((success ? successMsg :
             `ERROR: Failed to switch to Bladeburner ${bestActionType} "${bestActionName}" (Count: ${getCount(bestActionName)}, ` +
             `ETA: ${ns.tFormat(expectedDuration)}, Details: ${reason})`),
-        !success, success ? (options['toast-operations'] ? 'info' : undefined) : 'error');
+        !success);
+    if (success) ns.toast(successMsg, 'info', 10000);
     // Ensure we perform this new action at least once before interrupting it
     lastAssignedTask = bestActionName;
     currentTaskEndTime = !success ? 0 : Date.now() + expectedDuration + 10; // Pad this a little to ensure we don't interrupt it.
 }
 
 /** @param {NS} ns
+ * @param city
+ * @param reason
  * Helper to switch cities. */
 async function switchToCity(ns, city, reason) {
     const success = ns.bladeburner.switchCity(city);
     ns.print((success ? 'INFO: Switched' : 'ERROR: Failed to switch') + ` to Bladeburner city "${city}" (${reason})`,
-        !success, success ? (options['toast-relocations'] ? 'info' : undefined) : 'error');
+        !success);
     return success;
 }
 
@@ -368,7 +369,8 @@ async function spendSkillPoints(ns) {
             skillCosts[skillName] = ns.bladeburner.getSkillUpgradeCost(skillName);
         }
         // Find the next lowest skill cost
-        let skillToUpgrade, minPerceivedCost = Number.MAX_SAFE_INTEGER;
+        let skillToUpgrade = '';
+        let minPerceivedCost = Number.MAX_SAFE_INTEGER;
         for (const skillName of skillNames) {
             let perceivedCost = skillCosts[skillName] * (costAdjustments[skillName] || 1);
             // Bitburner bug workaround: Overclock is capped at lvl 90, but the cost does not return e.g. Infinity
@@ -379,9 +381,11 @@ async function spendSkillPoints(ns) {
         // If the perceived or actual cost of the next best upgrade is too high, save our remaining points for later
         if (minPerceivedCost > unspent || skillCosts[skillToUpgrade] > unspent) return;
         // Otherwise, purchase the upgrade
-        if (ns.bladeburner.upgradeSkill(skillToUpgrade))
-            ns.print(`SUCCESS: Upgraded Bladeburner skill ${skillToUpgrade}`, false, options['toast-upgrades'] ? 'success' : undefined);
-        else
+        if (skillToUpgrade && ns.bladeburner.upgradeSkill(skillToUpgrade)) {
+            const msg = `SUCCESS: Spent ${skillCosts[skillToUpgrade]} to upgrade '${skillToUpgrade}' to ${skillLevels[skillToUpgrade] + 1}`;
+            ns.print(msg);
+            ns.toast(msg, 'success', 30000);
+        } else
             ns.print(`WARNING: Something went wrong while trying to upgrade Bladeburner skill ${skillToUpgrade}. ` +
                 `Currently have ${unspent} SP, upgrade should cost ${skillCosts[skillToUpgrade]} SP.`, false, 'warning');
         await ns.asleep(10);

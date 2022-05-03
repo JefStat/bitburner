@@ -1,5 +1,5 @@
 import { boxTailSingleton, copyHackingFiles, tryGetBitNodeMultipliers } from "utils.js"
-import {getOwnedAugmentationsStatic} from 'augments.js';
+import { getOwnedAugmentationsStatic } from 'augments.js';
 /** @param {NS} ns **/
 export async function main(ns) {
     ns.disableLog('sleep');
@@ -15,10 +15,10 @@ export async function main(ns) {
     ns.disableLog('getPurchasedServers');
     ns.disableLog('getPurchasedServerLimit');
     ns.disableLog('getPurchasedServerCost');
-    ns.clearLog();
     //ns.tail();
     const multis = tryGetBitNodeMultipliers(ns);
     boxTailSingleton(ns, 'purchase pc', '🖳', '100px');
+    ns.clearLog();
     let player = ns.getPlayer();
     const bitNodeN = player.bitNodeN;
     function purchasePortHacks(player) {
@@ -59,12 +59,11 @@ export async function main(ns) {
         purchasePortHacks(player);
     }
     purchaseTor(player);
-    if ([2, 6, 7, 8].includes(bitNodeN) && player.hacking < 200) {
-        ns.print('Not buying servers in bitnode 2... yet');
+    if ([2, 6, 7, 8].includes(bitNodeN) && player.hacking < 200 || (ns.heart.break() > -54000)) {
+        ns.print('Not buying servers in bitnode... yet');
     } else {
         // PurchasedServerMaxRam
         const ram = Math.min(ns.getServer('home').maxRam / 2, 1048576 * multis.PurchasedServerMaxRam);
-        ns.print(ns.nFormat(ram, '0.0a'));
         let i = ns.getPurchasedServers().length;
         while (i < ns.getPurchasedServerLimit()) {
             player = ns.getPlayer();
@@ -76,48 +75,10 @@ export async function main(ns) {
                 const name = "pserv-" + i;
                 ns.purchaseServer(name, ram);
                 await copyHackingFiles(ns, { hostname: name, hasAdminRights: true });
-                ns.print(`purchased server ${name} ${ns.nFormat(cost, '$0.0a')}`)
+                ns.print(`purchased server ${name} ${ns.nFormat(cost, '$0.0a')} with ${ns.nFormat(ram, '0a')} ram`)
                 ++i;
             }
             await ns.sleep(3000);
         }
-    }
-
-    if (multis.HacknetNodeMoney < .8) {
-        ns.print('Not buying hacknet servers in bitnode with money multi of ' + multis.HacknetNodeMoney);
-        return;
-    }
-    const maxCores = ns.formulas.hacknetNodes.coreUpgradeCost(1, 15);
-    const maxRam = ns.formulas.hacknetNodes.ramUpgradeCost(1, 6);
-    const maxLevel = ns.formulas.hacknetNodes.levelUpgradeCost(1, 199);
-    const maxHackNetUpgradeCost_preAug = maxCores + maxLevel + maxRam;
-    // Start the hacknet node purchases
-    // 4 hash = 1_000_000 $
-
-    //Hacknet Node NIC Architecture Neural-Upload -10%
-    //Hacknet Node CPU Architecture Neural-Upload -15%
-    const playerAugs = getOwnedAugmentationsStatic();
-    const CPU = playerAugs.includes('Hacknet Node CPU Architecture Neural-Upload') ? .15:0;
-    const NIC = playerAugs.includes('Hacknet Node NIC Architecture Neural-Upload') ? .1:0;
-    while (ns.hacknet.numNodes() < Math.floor(20 * (.5+NIC+CPU))) {
-        player = ns.getPlayer();
-        purchaseTor(player);
-        let nodeCost = ns.hacknet.getPurchaseNodeCost();
-
-        // Purchase the nodes when we have enough money to do so
-        if (player.money > (nodeCost + maxHackNetUpgradeCost_preAug)) {
-
-            const purchaseIndex = ns.hacknet.purchaseNode();
-            const name = `hacknet-node-${purchaseIndex}`;
-            await copyHackingFiles(ns, { hostname: name, hasAdminRights: true });
-
-            ns.print(`purchased ${name}`)
-            ns.hacknet.upgradeLevel(purchaseIndex, 199);
-            ns.hacknet.upgradeRam(purchaseIndex, 6);
-            ns.hacknet.upgradeCore(purchaseIndex, 15);
-        }
-
-        // wait a few seconds before we have them all
-        await ns.sleep('5000');
     }
 }

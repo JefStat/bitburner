@@ -9,8 +9,8 @@ let playerInfo, numSleeves;
 let options;
 
 const argsSchema = [
-    ['min-shock-recovery', 98], // Minimum shock recovery before attempting to train or do crime (Set to 100 to disable, 0 to recover fully)
-    ['shock-recovery', 0.15], // Set to a number between 0 and 1 to devote that ratio of time to periodic shock recovery (until shock is at 0)
+    ['min-shock-recovery', 97], // Minimum shock recovery before attempting to train or do crime (Set to 100 to disable, 0 to recover fully)
+    ['shock-recovery', 0.3], // Set to a number between 0 and 1 to devote that ratio of time to periodic shock recovery (until shock is at 0)
     ['crime', null], // If specified, sleeves will perform only this crime regardless of stats
     ['aug-budget', 1], // Spend up to this much of current cash on augs per tick (Default is high, because these are permanent for the rest of the BN)
     ['buy-cooldown', 60 * 1000], // Must wait this may milliseconds before buying more augs for a sleeve
@@ -27,7 +27,8 @@ export async function main(ns) {
     options = ns.flags(argsSchema);
     ns.disableLog('getServerMoneyAvailable');
     ns.disableLog('asleep');
-    boxTailSingleton(ns, 'sleeves', '⛹⛹⛹⛹⛹⛹⛹⛹', '200px');
+    boxTailSingleton(ns, 'sleeves', '⛹x8', '150px');
+    ns.clearLog();
     // Ensure the global state is reset (e.g. after entering a new bitnode)
     task = [];
     lastStatusUpdateTime = [];
@@ -41,16 +42,17 @@ export async function main(ns) {
     while (true) {
         try { await mainLoop(ns); }
         catch (error) {
-            ns.print(`WARNING: An error was caught (and suppressed) in the main loop: ${JSON.stringify(error)}`, false, 'warning');
+            ns.print(`WARNING: An error was caught (and suppressed) in the main loop: ${error.message}`, false, 'warning');
+            ns.print(error.stack);
         }
         await ns.asleep(interval);
     }
 }
-
+//todo convert the status to some nice html for the box.js
+let sleeveStatuses = [];
 /** @param {NS} ns
  * Main loop that gathers data, checks on all sleeves, and manages them. */
 async function mainLoop(ns) {
-    ns.clearLog();
     try {
         const sleeveData = JSON.parse(ns.read('/tmp/sleeves_static.txt'));
         numSleeves = sleeveData.getNumSleeves;
@@ -94,20 +96,20 @@ async function mainLoop(ns) {
 
         // Decide what we think the sleeve should be doing for the next little while
         let [designatedTask, command, args, statusUpdate] = await pickSleeveTask(ns, i, sleeve);
-
+        sleeveStatuses[i] = sleeveStatuses[i] || statusUpdate;
         // Start the clock, this sleeve should stick to this task for minTaskWorkTime
         lastReassignTime[i] = Date.now();
         // Set the sleeve's new task if it's not the same as what they're already doing.
         if (task[i] !== designatedTask)
             await setSleeveTask(ns, i, designatedTask, command, args);
+    }
 
-        // For certain tasks, log a periodic status update.
-        if (statusUpdate && Date.now() - (lastStatusUpdateTime[i] ?? 0) > minTaskWorkTime) {
-            ns.print(`INFO: Sleeve ${i} is ${statusUpdate} `);
-            lastStatusUpdateTime[i] = Date.now();
-        }
+    ns.clearLog();
+    for (let i = 0; i < sleeveStatuses.length; i++) {
+        ns.print(`[${i}] ${sleeveStatuses[i]}`);
     }
 }
+const excludedAugs = ['QLink', 'Hydroflame Left Arm'];
 
 /** @param {NS} ns
  * @param i
@@ -117,7 +119,7 @@ async function manageSleeveAugs(ns, i, budget) {
     // Retrieve and cache the set of available sleeve augs (cached temporarily, but not forever, in case rules around this change)
     if (availableAugs[i] == null || Date.now() > cacheExpiry[i]) {
         cacheExpiry[i] = Date.now() + 60000;
-        availableAugs[i] = (ns.sleeve.getSleevePurchasableAugs(i)).sort((a, b) => a.cost - b.cost);
+        availableAugs[i] = ns.sleeve.getSleevePurchasableAugs(i).filter(a => !excludedAugs.includes(a.name)).sort((a, b) => a.cost - b.cost);
     }
     if (availableAugs[i].length === 0) return 0;
 
@@ -141,34 +143,40 @@ async function manageSleeveAugs(ns, i, budget) {
     }
     return 0;
 }
-
+let sleeveFactionWork = [];
 /** @param {NS} ns
  * @param i
  * @param sleeve
  * Picks the best task for a sleeve, and returns the information to assign and give status updates for that task. */
 async function pickSleeveTask(ns, i, sleeve) {
     // Must synchronize first iif you haven't maxed memory on every sleeve.
-    if (sleeve.sync < 100)
+    if (sleeve.sync < 100) {
+        sleeveFactionWork[i] = '';
         return ["synchronize", ns.sleeve.setToSynchronize, [i], `syncing... ${sleeve.sync.toFixed(2)}%`];
+    }
     // must crime till gangs can be unlocked
     if (ns.heart.break() > -54000) {
         let crime = getBestCrime(ns, sleeve, true);
+        sleeveFactionWork[i] = '';
         return [`commit ${crime.name} `, ns.sleeve.setToCommitCrime, [i, crime.name],
             /*   */ `committing ${crime.name} with rate ${(crime.rate).toFixed(2)}`];
     }
     // Opt to do shock recovery if above the --min-shock-recovery threshold, or if above 0 shock, with a probability of --shock-recovery
-    if (sleeve.shock > options['min-shock-recovery'] || sleeve.shock > 0 && options['shock-recovery'] > 0 && Math.random() < options['shock-recovery'])
+    if (sleeve.shock > options['min-shock-recovery'] || sleeve.shock > 0 && options['shock-recovery'] > 0 && Math.random() < options['shock-recovery']){
+        sleeveFactionWork[i] = '';
         return ["recover from shock", ns.sleeve.setToShockRecovery, [i], `recovering from shock... ${sleeve.shock.toFixed(2)}%`];
+    }
     // If player is currently working for faction or company rep, sleeves 0 can help him out (Note: Only one sleeve can work for a faction)
     if (i === 0 && playerInfo.isWorking && playerInfo.workType === "Working for Faction") {
         // TODO: We should be able to borrow logic from work-for-factions.js to have more sleeves work for useful factions / companies
         // We'll cycle through work types until we find one that is supported. TODO: Auto-determine the most productive faction work to do.
         const faction = playerInfo.currentWorkFactionName;
-        const work = factionsWork[faction][0];
+        sleeveFactionWork[i] = 'faction';
         return [`work for faction '${faction}' (${work})`, ns.sleeve.setToFactionWork, [i, faction, work],
             /*   */ `helping earn rep with faction ${faction} by doing ${work}.`];
     }
     if (i === 0 && playerInfo.isWorking && playerInfo.workType === "Working for Company") { // If player is currently working for a company rep, sleeves 0 shall help him out (only one sleeve can work for a company)
+        sleeveFactionWork[i] = '';
         return [`work for company '${playerInfo.companyName}'`, ns.sleeve.setToCompanyWork, [i, playerInfo.companyName],
             /*   */ `helping earn rep with company ${playerInfo.companyName}.`];
     }
@@ -177,23 +185,25 @@ async function pickSleeveTask(ns, i, sleeve) {
         const factionsWithAugs = Object.entries(factionAugs)
             .filter(([faction, augList]) =>
                 augList.filter(aug => aug !== 'NeuroFlux Governor').length > 0 // work for factions with augs other than NFG
-                && faction !== playerInfo.currentWorkFactionName // sleeve 0 is working for this faction
-                // && !allGangFactions.includes(faction) // can't work for competing gangs
                 && playerInfo.factions.includes(faction) // player in faction
-                && faction !== 'Bladeburners'
-                && faction !== 'Slum Snakes') // can't work for Bladeburners
-            .map(([faction]) => faction);
-        let faction = factionsWithAugs[i]; // just use sleeve index to pick a faction to work for
-        if (faction) {
+                && faction !== 'Bladeburners' // can't work for Bladeburners
+                && faction !== 'Slum Snakes'
+                && !sleeveFactionWork.includes(faction)); // can't work for Slumsnakes (in gang)
+        //TODO check faction rep is <= max aug cost
+        //TODO track factions and companies being worked for instead of using sleeve index
+        let factionAndAugs = factionsWithAugs[0]; // just use sleeve index to pick a faction to work for
+        if (factionAndAugs && factionAndAugs[0]) {
+            let faction = factionAndAugs[0];
             const work = factionsWork[faction][0];
+            sleeveFactionWork[i] = faction;
             return [`work for faction '${faction}' (${work})`, ns.sleeve.setToFactionWork, [i, faction, work],
-                /*   */ `helping earn rep with faction ${faction} by doing ${work}.`];
+                /*   */ `doing ${work} at ${faction}.`];
         }
     }
     // Finally, do crime for Karma. Homicide has the rate gain, if we can manage a decent success rate.
     let crime = getBestCrime(ns, sleeve, ns.heart.break() > -54000);
     return [`commit ${crime.name} `, ns.sleeve.setToCommitCrime, [i, crime.name],
-        /*   */ `committing ${crime.name} with rate ${(crime.rate).toFixed(2)}`];
+        /*   */ `committing ${crime.name} with rate ${ns.nFormat(crime.rate,'0.0a')}`];
 }
 
 /** @param {NS} ns

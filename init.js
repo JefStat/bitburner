@@ -1,5 +1,5 @@
 import { initAugments } from "./augments";
-import { boxTailSingleton} from "utils.js"
+import { boxTailSingleton } from "utils.js"
 let ns;
 
 /** @param {NS} pns **/
@@ -39,8 +39,9 @@ export async function main(pns) {
 	ns.exec('spend-hacknet-hash.js', 'home');
 	ns.exec('player.js', 'home');
 	ns.exec('sleeves.js', 'home');
+	ns.exec('bladeburner.js', 'home');
 	ns.exec('megacorp.js', 'home');
-	if (ns.getPlayer().bitNodeN !== 6) ns.exec('workForFaction.js', 'home', 1, !ns.gang.inGang() ? `--gang-focus` : '--no-crime');
+	if (![6, 7].includes(ns.getPlayer().bitNodeN)) ns.exec('workForFaction.js', 'home', 1, !ns.gang.inGang() ? `--gang-focus` : '--no-crime');
 	if (ns.gang.inGang()) ns.exec('gangum.js', 'home');
 	ns.exec('mcp_hgw.js', 'home');
 	ns.exec('custom-stats.js', 'home');
