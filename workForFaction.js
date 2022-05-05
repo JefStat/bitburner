@@ -51,7 +51,7 @@ const preferredCompanyFactionOrder = [
 ]
 // Order in which to focus on crime factions
 const preferredCrimeFactionOrder = ["Netburners", "Slum Snakes", "NiteSec", "Tetrads", "The Black Hand", "The Syndicate", "The Dark Army", "Speakers for the Dead", "Daedalus"]
-
+const simulacrumAugName = "The Blade's Simulacrum"; // This augmentation lets you do bladeburner actions while busy
 const loopSleepInterval = 2000; // 2 seconds
 const statusUpdateInterval = 120000; // 2 minutes (outside of this, minor updates in e.g. stats aren't logged)
 const restartWorkInterval = 30000; // Collect e.g. rep earned by stopping and starting work;
@@ -102,9 +102,8 @@ export async function main(ns) {
     ns.disableLog('stopAction');
     ns.disableLog('applyToCompany');
     ns.disableLog('commitCrime');
-    ns.clearLog();
-    ns.tail();
     boxTailSingleton(ns, 'FactionWork', '♥', '200px');
+    ns.clearLog();
     options = ns.flags(argsSchema);
     const desiredAugStats = (options['desired-stats'] || []);
     const firstFactions = options.first = (options.first || []).map(f => f.replaceAll('_', ' '));
@@ -185,6 +184,15 @@ export async function main(ns) {
                 await ns.sleep(crimeStats.time + 100);
             }
         }
+        if (!ownedAugmentations.includes(simulacrumAugName) && ns.bladeburner.getCurrentAction().type !== 'idle') {
+            ns.print(`Waiting on bladeburner ${ns.bladeburner.getCurrentAction().type} `);
+            scope--;
+            await earnFactionInvite(ns, "Aevum");
+            await earnFactionInvite(ns, "Sector-12");
+            await earnFactionInvite(ns, "Tian Di Hui");
+            await ns.sleep(30000);
+            continue;
+        }
 
         // Remove Fulcrum from our "EarlyFactionOrder" if hack level is insufficient to backdoor their server
         let priorityFactions = crimeFocus ? preferredCrimeFactionOrder.slice() : preferredEarlyFactionOrder.slice();
@@ -245,13 +253,13 @@ export async function main(ns) {
         // Strategy 8: Commit crimes for a while longer, then loop to see if there anything more we can do for the above factions
         if (noCrime) {
             ns.print(`--no-crime (or --no-focus): Crimes are disabled, so sleeping for a while (30s) then checking back on whether there's any work to be done...`);
-            ns.sleep(30000);
+            await ns.sleep(30000);
         } else await crimeForKillsKarmaStats(ns, 0, -ns.heart.break() + 100, 0);
     }
 }
 
 /** @param {NS} ns */
-function joinOpenInvitation (ns) {
+function joinOpenInvitation(ns) {
     let invitations = ns.checkFactionInvitations();
     for (let factionName of invitations) {
         // if (!skipFactions.includes(factionName))
@@ -283,7 +291,7 @@ export function getBestCrime(ns, getKarma) {
             //ns.print(`next crime ${doThisCrime} @ ${(getKarma ? doThisCrimeRate.toPrecision(2) : ns.nFormat(doThisCrimeRate, '0.0'))} ${(getKarma ? 'karma' : '$')}/s`);
         }
     }
-    return {doThisCrime, ...bestCrimeStats};
+    return { doThisCrime, ...bestCrimeStats };
 }
 
 

@@ -267,7 +267,7 @@ async function mainLoop(ns) {
             candidateActions = candidateActions.filter(a => a !== nextBlackOp);
         }
 
-        //ns.print('The following actions are available: ' + candidateActions); // Debug log to see what candidate actions are
+        // ns.print('The following actions are available: ' + candidateActions); // Debug log to see what candidate actions are
         // Pick the first candidate action with a minimum chance of success that exceeds our --success-threshold
         bestActionName = candidateActions.filter(a => minChance(a) > options['success-threshold'])[0];
         if (!bestActionName) // If there were none, allow us to fall-back to an action with a minimum chance >50%, and maximum chance > threshold
@@ -308,7 +308,10 @@ async function mainLoop(ns) {
     // Detect our current action (API returns an object like { "type":"Operation", "name":"Investigation" })
     const currentAction = ns.bladeburner.getCurrentAction();
     // Special case: If the user has manually kicked off the last BlackOps, don't interrupt it, let it be our last task
-    if (currentAction?.name === remainingBlackOpsNames[remainingBlackOpsNames - 1]) lastAssignedTask = currentAction;
+    if (currentAction?.name === remainingBlackOpsNames[remainingBlackOpsNames.length - 1]) {
+        lastAssignedTask = currentAction;
+        bestActionName = currentAction.name;
+    }
     // Warn the user if it looks like a task was interrupted by something else (user activity or bladeburner automation). Ignore if our last assigned task has run out of actions.
     if (lastAssignedTask && lastAssignedTask !== currentAction?.name && getCount(lastAssignedTask) > 0) {
         ns.print(`WARNING: The last task this script assigned was "${lastAssignedTask}", but you're now doing "${currentAction?.name || '(nothing)'}". ` +

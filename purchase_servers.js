@@ -59,11 +59,11 @@ export async function main(ns) {
         purchasePortHacks(player);
     }
     purchaseTor(player);
-    if ([2, 6, 7, 8].includes(bitNodeN) && player.hacking < 200 || (ns.heart.break() > -54000)) {
-        ns.print('Not buying servers in bitnode... yet');
+    if ([2, 6, 7, 8, 11].includes(bitNodeN) && player.hacking < 200 || (ns.heart.break() > -54000)) {
+        ns.print(`Not buying servers in bitnode ${bitNodeN}`);
     } else {
         // PurchasedServerMaxRam
-        const ram = Math.min(ns.getServer('home').maxRam / 2, 1048576 * multis.PurchasedServerMaxRam);
+        const ram = Math.min(ns.getServer('home').maxRam / 4, 1048576 * multis.PurchasedServerMaxRam);
         let i = ns.getPurchasedServers().length;
         while (i < ns.getPurchasedServerLimit()) {
             player = ns.getPlayer();

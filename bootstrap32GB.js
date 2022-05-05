@@ -5,7 +5,6 @@ New node init script must stay below 32GB
 - Upgrade home ram to 1TB
 - Run init.js
  */
-import { getBestCrime } from "player.js";
 /** @param {NS} ns **/
 export async function main(ns) {
     ns.disableLog('sleep');
@@ -37,12 +36,14 @@ export async function main(ns) {
 
         if (player.money > 200000 && casinoBreakerPid === 0) {
             casinoBreakerPid = ns.exec('casinoBreaker.js', 'home');
-            if (casinoBreakerPid === 0)
+            if (casinoBreakerPid === 0) {
                 casinoBreakerPid = ns.getRunningScript('casinoBreaker.js', 'home').pid;
+                ns.print(`casinoBreakerPid ${casinoBreakerPid}`);
+            }
             continue;
         }
 
-        if (player.isWorking && casinoBreakerPid === 0) {
+        if (ns.isBusy() || casinoBreakerPid !== 0) {
             continue;
         }
         ns.commitCrime('shoplift');

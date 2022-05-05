@@ -1,15 +1,4 @@
 let doc = eval("document");
-/** @param {NS} ns **/
-async function getFlipResult(ns) {
-    await ns.sleep(1);
-    let resultAnswer = find("//*[@id=\"root\"]/div/div[2]/div[2]/div[1]/p")
-    if (resultAnswer != null) {
-        let answer = resultAnswer.textContent;
-        return answer;
-    }
-
-    return 'x';
-}
 
 export async function main(ns) {
     ns.disableLog('sleep');
@@ -20,55 +9,6 @@ export async function main(ns) {
     await playRoulette(ns);
 }
 
-async function playCoinFlip(ns) {
-    const btnCoinFlip = find("//button[contains(text(), 'coin')]");
-    if (!btnCoinFlip) return ns.tprint("ERROR: Attempt to automatically navigate to the Casino appears to have failed.");
-    await click(btnCoinFlip);
-
-    await ns.sleep(100);
-
-    const minPlay = 0;
-    const maxPlay = 10e3;
-    const inputWager = find("//input");
-    inputWager.value = minPlay;
-
-    const results = [];
-    for (let i = 0; i < 1024; i++) {
-        // Click on the "head" button
-        let btnHead = find("//button[text() = 'Head!']");
-        await click(btnHead);
-        let result = await getFlipResult(ns);
-        ns.print(`${i} ${result}`);
-        results.push(result);
-    }
-    if (results.length === 1024) {
-        await playToWinCoinFlip(ns, results, maxPlay);
-    }
-}
-async function playToWinCoinFlip(ns, results, maxPlay) {
-    let btnHead = find("//button[text() = 'Head!']");
-    let btnTail = find("//button[text() = 'Tail!']");
-    const inputWager = find("//input");
-    let i = 0;
-    let wins = 0;
-    while (btnHead && btnTail) {
-        inputWager.value = Math.min(maxPlay, ns.getServerMoneyAvailable('home'));
-        if (results[i] === 'H') {
-            await click(btnHead);
-        } else {
-            await click(btnTail);
-        }
-        const r = await getFlipResult(ns);
-        if (r === results[i]) {
-            wins++;
-        } else {
-            ns.print(`${r}$ !== ${results[i]} @ ${i}`)
-            return;
-        }
-        ns.print(wins);
-        i = (i + 1) % results.length;
-    }
-}
 function arraysPercentEqual(a, b) {
     if (a === b) return 1;
     if (a == null || b == null) return 0;
@@ -86,7 +26,6 @@ function arraysPercentEqual(a, b) {
 }
 
 async function playRoulette(ns) {
-
     const btnRoulette = find("//button[contains(text(), 'roulette')]");
     if (!btnRoulette) return ns.tprint("ERROR: Attempt to automatically navigate to the Casino appears to have failed.");
     const startSeed = new Date().getTime();
@@ -132,17 +71,21 @@ async function playRoulette(ns) {
         await playToWinRoulette(ns, goodSeeds[0], inputWager, maxPlay);
     } else if (goodSeeds.length > 1) {
         ns.print('Too many match, increase sample size');
+        ns.goToLocation('Slums');
+        await playRoulette(ns);
     } else {
-        ns.print('No seeds match, increase sample size');
+        ns.print('No seeds match, probably a win translated to a loss and incremented seed');
+        ns.goToLocation('Slums');
+        await playRoulette(ns);
     }
-
 }
 
+const kickedOutAlert = 'Alright cheater get out of here. You\'re not allowed here anymore.';
 async function playToWinRoulette(ns, whrng, inputWager, maxPlay) {
     // maxPlay = 0; //testing value
     let losses = 0;
     let plays = 0;
-    while (true) {
+    while (!find(`//span[text() = "${kickedOutAlert}"]`)) {
         // inputWager.value = Math.floor(Math.min(maxPlay, ns.getPlayer().money));
         await setText2(inputWager, `${Math.floor(Math.min(maxPlay, ns.getServerMoneyAvailable('home')))}`);
         const luckynumber = whrng.randomRouletteNumber();
@@ -154,6 +97,8 @@ async function playToWinRoulette(ns, whrng, inputWager, maxPlay) {
         ns.print(`number lucky ${luckynumber} actual ${result}`);
         if (luckynumber !== result) {
             losses++;
+            // uncomment this for ver > 1.6.4
+            // whrng.randomRouletteNumber();
         }
         if (losses / plays > .91) {
             ns.print('Somethings broken loses are greater than expected');

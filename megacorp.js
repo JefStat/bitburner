@@ -120,12 +120,20 @@ export async function main(ns) {
 	options = ns.flags(argsSchema);
 	verbose = options.v || options.verbose;
 
+	let createCorp = false;
 	// See if we've already created a corporation.
 	try {
 		myCorporation = c.getCorporation();
 	} catch {
-		c.createCorporation('corp', true);
-		myCorporation = c.getCorporation();
+		createCorp = true;
+	}
+	if (createCorp) {
+		try {
+			c.createCorporation('corp', true);
+			myCorporation = c.getCorporation();
+		} catch {
+			return;
+		}
 	}
 	await ns.write('/tmp/incorp.txt', '', 'w');
 	boxTailSingleton(ns, 'corp', '🏠', '400px');

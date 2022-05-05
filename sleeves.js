@@ -1,10 +1,13 @@
-import { boxTailSingleton, sleevesPortNumber } from "./utils";
+import { findBox, boxTailSingleton, sleevesPortNumber, tryGetBitNodeMultipliers } from "./utils";
+import { createSidebarItem, elemFromHTML, sidebar } from "/box/box.js"
 import { getAugsRemainingAtFaction, factionsWork } from "./augments";
 
 const interval = 5000; // Update (tick) this often
 const minTaskWorkTime = 29000; // Sleeves assigned a new task should stick to it for at least this many milliseconds
 let workByFaction; // Cache of crime statistics and which factions support which work
-let task, lastStatusUpdateTime, lastPurchaseTime, lastPurchaseStatusUpdate, availableAugs, cacheExpiry, lastReassignTime; // State by sleeve
+let task, lastPurchaseTime, lastPurchaseStatusUpdate, availableAugs, cacheExpiry, lastReassignTime; // State by sleeve
+//todo convert the status to some nice html for the box.js
+let sleeveStatuses = [];
 let playerInfo, numSleeves;
 let options;
 
@@ -27,16 +30,22 @@ export async function main(ns) {
     options = ns.flags(argsSchema);
     ns.disableLog('getServerMoneyAvailable');
     ns.disableLog('asleep');
+    // const title = 'sleeves';
+    // let box = findBox(title);
+    // if (!box) {
+    //     box = createSidebarItem(title, '<div />', 'x8⛹')
+    // }
+    // elemFromHTML('');
     boxTailSingleton(ns, 'sleeves', '⛹x8', '150px');
     ns.clearLog();
     // Ensure the global state is reset (e.g. after entering a new bitnode)
     task = [];
-    lastStatusUpdateTime = [];
     lastPurchaseTime = [];
     lastPurchaseStatusUpdate = [];
     availableAugs = [];
     cacheExpiry = [];
     lastReassignTime = [];
+    sleeveStatuses = [];
     workByFaction = {};
     // Start the main loop
     while (true) {
@@ -48,8 +57,6 @@ export async function main(ns) {
         await ns.asleep(interval);
     }
 }
-//todo convert the status to some nice html for the box.js
-let sleeveStatuses = [];
 /** @param {NS} ns
  * Main loop that gathers data, checks on all sleeves, and manages them. */
 async function mainLoop(ns) {
@@ -96,12 +103,14 @@ async function mainLoop(ns) {
 
         // Decide what we think the sleeve should be doing for the next little while
         let [designatedTask, command, args, statusUpdate] = await pickSleeveTask(ns, i, sleeve);
-        sleeveStatuses[i] = sleeveStatuses[i] || statusUpdate;
+
         // Start the clock, this sleeve should stick to this task for minTaskWorkTime
         lastReassignTime[i] = Date.now();
         // Set the sleeve's new task if it's not the same as what they're already doing.
-        if (task[i] !== designatedTask)
+        if (task[i] !== designatedTask) {
             await setSleeveTask(ns, i, designatedTask, command, args);
+            sleeveStatuses[i] = statusUpdate;
+        }
     }
 
     ns.clearLog();
@@ -162,7 +171,7 @@ async function pickSleeveTask(ns, i, sleeve) {
             /*   */ `committing ${crime.name} with rate ${(crime.rate).toFixed(2)}`];
     }
     // Opt to do shock recovery if above the --min-shock-recovery threshold, or if above 0 shock, with a probability of --shock-recovery
-    if (sleeve.shock > options['min-shock-recovery'] || sleeve.shock > 0 && options['shock-recovery'] > 0 && Math.random() < options['shock-recovery']){
+    if (sleeve.shock > options['min-shock-recovery'] || sleeve.shock > 0 && options['shock-recovery'] > 0 && Math.random() < options['shock-recovery']) {
         sleeveFactionWork[i] = '';
         return ["recover from shock", ns.sleeve.setToShockRecovery, [i], `recovering from shock... ${sleeve.shock.toFixed(2)}%`];
     }
@@ -203,7 +212,7 @@ async function pickSleeveTask(ns, i, sleeve) {
     // Finally, do crime for Karma. Homicide has the rate gain, if we can manage a decent success rate.
     let crime = getBestCrime(ns, sleeve, ns.heart.break() > -54000);
     return [`commit ${crime.name} `, ns.sleeve.setToCommitCrime, [i, crime.name],
-        /*   */ `committing ${crime.name} with rate ${ns.nFormat(crime.rate,'0.0a')}`];
+        /*   */ `committing ${crime.name} with rate ${ns.nFormat(crime.rate, '0.0a')}`];
 }
 
 /** @param {NS} ns
@@ -249,6 +258,7 @@ function calculateSleeveCrimeChance(ns, sleeve, crimeStats) {
 
 const recommendedCrimes = ["shoplift", "rob store", "mug", "traffick arms", "homicide", "grand theft auto", "kidnap", "assassinate", "heist"]
 function getBestCrime(ns, sleeve, getKarma) {
+    const crimeMoney = tryGetBitNodeMultipliers(ns).CrimeMoney;
     let bestCrimeStats;
     let crimeRate = -1;
     let crimeStats;
@@ -256,7 +266,7 @@ function getBestCrime(ns, sleeve, getKarma) {
         crimeStats = ns.getCrimeStats(crime);
         crimeStats.name = crime;
         crimeStats.chance = calculateSleeveCrimeChance(ns, sleeve, crimeStats);
-        crimeStats.rate = crimeStats.chance * (getKarma ? crimeStats.karma : crimeStats.money) / crimeStats.time * 1000;
+        crimeStats.rate = crimeStats.chance * (getKarma ? crimeStats.karma : crimeStats.money * crimeMoney) / crimeStats.time * 1000;
 
         //ns.print(JSON.stringify(crimeStats));
         if (crimeStats.rate > crimeRate) {

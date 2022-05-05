@@ -3,13 +3,16 @@ import { createSidebarItem, sidebar } from "/box/box.js"
 
 export const sleevesPortNumber = 15;
 
-export const boxTailSingleton = (ns, title, icon, height, pinned = "<div/>") => {
-	var res = [];
+export const findBox = (title) => {
+	let res = [];
 	sidebar.querySelectorAll('div.sbitem').forEach(sbitem => res.push({ sbitem, title: sbitem.querySelector('div.head > span').innerText }));
 	let box = res.find(o => o.title === title);
-	if (box) {
-		box = box.sbitem;
-	} else {
+	return box ? box.sbitem : box;
+}
+
+export const boxTailSingleton = (ns, title, icon, height, pinned = "<div/>") => {
+	let box = findBox(title);
+	if (!box) {
 		box = createSidebarItem(title, pinned, icon);
 	}
 	if (height) box.style.height = height;

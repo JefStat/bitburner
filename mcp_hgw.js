@@ -16,9 +16,8 @@ export async function main(pns) {
     ns = pns;
     ns.disableLog('ALL');
     ns.enableLog('exec')
-    ns.clearLog();
-    ns.tail();
     boxTailSingleton(ns, 'mcp', '🥾', '200px');
+    ns.clearLog();
     weaken_scriptRam = ns.getScriptRam(weaken_script, "home");
     grow_scriptRam = ns.getScriptRam(grow_script, "home");
     hack_scriptRam = ns.getScriptRam(hack_script, "home");

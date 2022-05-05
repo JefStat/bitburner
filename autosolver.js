@@ -1,7 +1,5 @@
 import { list_servers } from "opened_servers.js";
 import { boxTailSingleton } from 'utils.js';
-import { MinHeap} from "util/heap.js";
-
 /** @param {NS} ns **/
 export function main(ns) {
     boxTailSingleton(ns, 'autosolver', '🔎', '200px');
