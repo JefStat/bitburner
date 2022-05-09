@@ -15,7 +15,7 @@ const argsSchema = [
     ['min-shock-recovery', 97], // Minimum shock recovery before attempting to train or do crime (Set to 100 to disable, 0 to recover fully)
     ['shock-recovery', 0.3], // Set to a number between 0 and 1 to devote that ratio of time to periodic shock recovery (until shock is at 0)
     ['crime', null], // If specified, sleeves will perform only this crime regardless of stats
-    ['aug-budget', 1], // Spend up to this much of current cash on augs per tick (Default is high, because these are permanent for the rest of the BN)
+    ['aug-budget', 10e9], // Spend up to this much of current cash on augs per tick (Default is high, because these are permanent for the rest of the BN)
     ['buy-cooldown', 60 * 1000], // Must wait this may milliseconds before buying more augs for a sleeve
     ['min-aug-batch', 20], // Must be able to afford at least this many augs before we pull the trigger (or fewer if buying all remaining augs)
 ];
@@ -53,6 +53,7 @@ export async function main(ns) {
         catch (error) {
             ns.print(`WARNING: An error was caught (and suppressed) in the main loop: ${error.message}`, false, 'warning');
             ns.print(error.stack);
+            ns.toast(`Sleeves.js Error: ${error.message}`, 'error', 5000);
         }
         await ns.asleep(interval);
     }
@@ -115,7 +116,7 @@ async function mainLoop(ns) {
 
     ns.clearLog();
     for (let i = 0; i < sleeveStatuses.length; i++) {
-        ns.print(`[${i}] ${sleeveStatuses[i]}`);
+        ns.print(`[${i%numSleeves}] ${sleeveStatuses[i]}`);
     }
 }
 const excludedAugs = ['QLink', 'Hydroflame Left Arm'];
@@ -134,19 +135,18 @@ async function manageSleeveAugs(ns, i, budget) {
 
     const cooldownLeft = Math.max(0, options['buy-cooldown'] - (Date.now() - (lastPurchaseTime[i] || 0)));
     const [batchCount, batchCost] = availableAugs[i].reduce(([n, c], aug) => c + aug.cost <= budget ? [n + 1, c + aug.cost] : [n, c], [0, 0]);
-    const purchaseUpdate = `sleeve ${i} can afford ${batchCount.toFixed(0).padStart(2)}/${availableAugs[i].length.toFixed(0).padEnd(2)} remaining augs ` +
-        `(cost ${ns.nFormat(batchCost, '0.0a')} of ${ns.nFormat(availableAugs[i].reduce((t, aug) => t + aug.cost, 0), '0.0a')}).`;
-    if (lastPurchaseStatusUpdate[i] !== purchaseUpdate)
-        ns.print(`INFO: With budget ${ns.nFormat(budget, '0.0a')}, ${(lastPurchaseStatusUpdate[i] = purchaseUpdate)} ` +
-            `(Min batch size: ${options['min-aug-batch']}, Cooldown: ${ns.tFormat(cooldownLeft)})`);
+    const purchaseUpdate = `Purchase ${batchCount.toFixed(0).padStart(2)}/${availableAugs[i].length.toFixed(0).padEnd(2)} augs ` +
+        `${ns.nFormat(batchCost, '$0.0a')} of ${ns.nFormat(availableAugs[i].reduce((t, aug) => t + aug.cost, 0), '$0.0a')}`;
+    sleeveStatuses[numSleeves + i] = purchaseUpdate;
     if (cooldownLeft === 0 && batchCount > 0 && ((batchCount >= availableAugs[i].length - 1) || batchCount >= options['min-aug-batch'])) { // Don't require the last aug it's so much more expensive
         let strAction = `Purchase ${batchCount} augmentations for sleeve ${i} at total cost of ${ns.nFormat(batchCost, '0.0.a')}`;
         let toPurchase = availableAugs[i].splice(0, batchCount);
-        // if (await getNsDataThroughFile(ns, `ns.args.slice(1).reduce((s, aug) => s && ns.sleeve.purchaseSleeveAug(ns.args[0], aug), true)`,
-        //     '/Temp/sleeve-purchase.txt', [i, ...toPurchase.map(a => a.name)])) {
+        if ((batchCost + 5e9) > playerInfo.money) {
+            return 0;
+        }
         if (await [i, ...toPurchase.map(a => a.name)].slice(1).reduce((s, aug) => s && ns.sleeve.purchaseSleeveAug(i, aug), true)) {
-            ns.print(`SUCCESS: ${strAction}`, true, 'success');
-        } else ns.print(`ERROR: Failed to ${strAction}`, true, 'error');
+            ns.toast(`SUCCESS: ${strAction}`, 'success', 30000);
+        } else ns.toast(`ERROR: Failed to ${strAction}`, 'error', 30000);
         lastPurchaseTime[i] = Date.now();
         return batchCost; // Even if we think we failed, return the predicted cost so if the purchase did go through, we don't end up over-budget
     }
@@ -180,7 +180,8 @@ async function pickSleeveTask(ns, i, sleeve) {
         // TODO: We should be able to borrow logic from work-for-factions.js to have more sleeves work for useful factions / companies
         // We'll cycle through work types until we find one that is supported. TODO: Auto-determine the most productive faction work to do.
         const faction = playerInfo.currentWorkFactionName;
-        sleeveFactionWork[i] = 'faction';
+        const work = factionsWork[faction][0];
+        sleeveFactionWork[i] = faction;
         return [`work for faction '${faction}' (${work})`, ns.sleeve.setToFactionWork, [i, faction, work],
             /*   */ `helping earn rep with faction ${faction} by doing ${work}.`];
     }
@@ -225,17 +226,17 @@ async function setSleeveTask(ns, i, designatedTask, command, args) {
     let strAction = `Set sleeve ${i} to ${designatedTask} `;
     if (await command(...args)) {
         task[i] = designatedTask;
-        ns.print(`SUCCESS: ${strAction} `);
+        //ns.print(`SUCCESS: ${strAction} `);
         return true;
     }
     // If assigning the task failed...
     lastReassignTime[i] = 0;
     // If working for a faction, it's possible he current work isn't supported, so try the next one.
     if (designatedTask.startsWith('work for faction')) {
-        ns.print(`WARN: Failed to ${strAction} - work type may not be supported.`, false, 'warning');
+        ns.toast(`WARN: Failed to ${strAction} - work type may not be supported.`, 'warning', 10000);
         workByFaction[playerInfo.currentWorkFactionName] = (workByFaction[playerInfo.currentWorkFactionName] || 0) + 1;
     } else
-        ns.print(`ERROR: Failed to ${strAction} `, true, 'error');
+        ns.toast(`ERROR: Failed to ${strAction} `, 'error', 30000);
     return false;
 }
 
@@ -275,6 +276,6 @@ function getBestCrime(ns, sleeve, getKarma) {
             //  ns.print(`next crime ${bestCrimeStats.name} @ ${(getKarma ? bestCrimeStats.rate.toPrecision(2) : ns.nFormat(bestCrimeStats.rate, '0.0'))} ${(getKarma ? 'karma' : '$')}/s`);
         }
     }
-    ns.print(`next crime ${bestCrimeStats.name} @ ${(getKarma ? bestCrimeStats.rate.toPrecision(2) : ns.nFormat(bestCrimeStats.rate, '0.0'))} ${(getKarma ? 'karma' : '$')}/s`);
+    //ns.print(`next crime ${bestCrimeStats.name} @ ${(getKarma ? bestCrimeStats.rate.toPrecision(2) : ns.nFormat(bestCrimeStats.rate, '0.0'))} ${(getKarma ? 'karma' : '$')}/s`);
     return bestCrimeStats;
 }

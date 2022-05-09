@@ -153,19 +153,25 @@ function equip() {
   const combatGear = Object.entries(nameStatsMap).filter(([e, stats]) => stats.str || stats.def || stats.cha);
   for (const [equipName] of combatGear) {
     for (const member of members) {
-      if (!member.upgrades.includes(equipName)) {
-        if (ns.gang.purchaseEquipment(member.name, equipName)) {
-          // ns.print(`Purchased ${equipName} for ${member.name}`);
-          gangumStatus[member.name.padEnd(10)] += ' ' + equipName;
-          if (combatAugmentPriorityOrder.includes(equipName)) {
-            ns.toast(`Purchased ${equipName} for ${member.name}`, 'success', 10000);
-          }
-        } else {
-          if (ns.getServerMoneyAvailable('home') < ns.gang.getEquipmentCost(equipName) && ns.gang.getEquipmentCost(equipName) < 10e9) {
-            ns.print(`Resetting to buy ${equipName} for ${member.name}`);
-            ns.softReset('bootstrap32GB.js');
-          }
+      const augsAndUpgrades = [];
+      augsAndUpgrades.push(...member.augmentations);
+      augsAndUpgrades.push(...member.upgrades);
+      if (augsAndUpgrades.includes(equipName)) {
+        continue;
+      }
+      if (ns.gang.purchaseEquipment(member.name, equipName)) {
+        // ns.print(`Purchased ${equipName} for ${member.name}`);
+        gangumStatus[member.name.padEnd(10)] += ' ' + equipName;
+        if (combatAugmentPriorityOrder.includes(equipName)) {
+          ns.toast(`Purchased ${equipName} for ${member.name}`, 'success', 10000);
         }
+        // restrict soft reset loop to do so only for the augs
+      } else if (combatAugmentPriorityOrder.includes(equipName)) {
+        if (ns.getServerMoneyAvailable('home') < ns.gang.getEquipmentCost(equipName) && ns.gang.getEquipmentCost(equipName) < 10e9) {
+          ns.print(`Resetting to buy ${equipName} for ${member.name}`);
+          ns.softReset('bootstrap32GB.js');
+        }
+
       }
     }
   }

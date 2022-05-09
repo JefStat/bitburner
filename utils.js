@@ -15,7 +15,18 @@ export const boxTailSingleton = (ns, title, icon, height, pinned = "<div/>") => 
 	if (!box) {
 		box = createSidebarItem(title, pinned, icon);
 	}
+	let ci = box.contextItems['kill'];
+	if (!ci) {
+		box.addContextItem('kill', () => ns.kill());
+	}
+	// update the function with this current ns instance;
+	box.contextItems['kill'].fn = () => ns.kill();
+
 	if (height) box.style.height = height;
+
+	// ns.atExit(function () {
+	// 	box.remove();
+	// });
 
 	const _clearLog = ns.clearLog;
 	ns.clearLog = () => {

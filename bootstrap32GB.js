@@ -35,6 +35,10 @@ export async function main(ns) {
         }
 
         if (player.money > 200000 && casinoBreakerPid === 0) {
+            while (ns.isBusy()) {
+                // need to finish crime before hitting the casino
+                await ns.sleep(20);
+            }
             casinoBreakerPid = ns.exec('casinoBreaker.js', 'home');
             if (casinoBreakerPid === 0) {
                 casinoBreakerPid = ns.getRunningScript('casinoBreaker.js', 'home').pid;

@@ -5,8 +5,7 @@ const _ = globalThis._; // lodash
 export const argsSchema = [
 	['no-expansion', false], // If this flag is set, do not expand to new industries. Just work on what we have.
 	['reserve-amount', 1e9], // Don't spend the corporation's last $billion if we can help it.
-	['v', false], // Print extra log messages.
-	['verbose', false],
+	['verbose', false],  // Print extra log messages.
 	['can-accept-funding', true], // When we run low on money, should we look for outside funding?
 	['can-go-public', true], // If we can't get private funding, should we go public?
 	['issue-shares', 0], // If we go public, how many shares should we issue?
@@ -113,12 +112,10 @@ let c;
 /** @param {NS} ns **/
 export async function main(ns) {
 	ns.disableLog('sleep');
-	ns.clearLog();
-	// ns.tail();
 	c = ns.corporation;
 	// Pull in any information we only need at startup.
 	options = ns.flags(argsSchema);
-	verbose = options.v || options.verbose;
+	verbose = options.verbose;
 
 	let createCorp = false;
 	// See if we've already created a corporation.
@@ -137,6 +134,7 @@ export async function main(ns) {
 	}
 	await ns.write('/tmp/incorp.txt', '', 'w');
 	boxTailSingleton(ns, 'corp', '🏠', '400px');
+	ns.clearLog();
 	// If we already have a corporation, make sure we didn't leave any workers waiting for assignment.
 	for (const division of myCorporation.divisions) {
 		for (const city of division.cities) {
@@ -205,9 +203,7 @@ async function doManageCorporation(ns) {
 		if (unlockable === 'Smart Supply' && cost < budget * 0.8) {
 			// Push this one to the top of the list. Doing it in code is annoying.
 			tasks.push(new Task('Unlock ' + unlockable, () => c.unlockUpgrade(unlockable), cost, 110));
-		} else if (unlockable === 'Warehouse API' && cost < budget * 0.25) shouldBuy = true;
-		else if (unlockable === 'Office API' && cost < budget * 0.25) shouldBuy = true;
-		else if (unlockable === 'Shady Accounting' && cost < budget * 0.5) shouldBuy = true;
+		} else if (unlockable === 'Shady Accounting' && cost < budget * 0.5) shouldBuy = true;
 		else if (unlockable === 'Government Partnership' && cost < budget * 0.5) shouldBuy = true;
 		// else if (unlockable === 'Export' && cost < budget * 0.1) shouldBuy = true;
 
@@ -360,6 +356,7 @@ async function tryRaiseCapital(ns) {
 			for (const division of myCorporation.divisions) {
 				let industry = industries.find((i) => i.name === division.type);
 				for (const city of division.cities) {
+					if (!c.hasWarehouse(division.name, city)) continue;
 					let warehouse = c.getWarehouse(division.name, city);
 					let warehouseSpaceRequiredForCycle = getReservedWarehouseSpace(ns, industry, division, city);
 					let warehouseSpaceAvailable = warehouse.size - warehouseSpaceRequiredForCycle - warehouse.sizeUsed;
@@ -961,6 +958,10 @@ async function doPriceDiscovery(ns) {
 		// Materials are easy. Just sell them for Market price.
 		for (const materialName of industry.prodMats) {
 			for (const city of division.cities) {
+				// sometimes in low valuation nodes might not have a warehouse yet
+				if(!c.hasWarehouse(division.name, city)){
+					continue;
+				}
 				c.sellMaterial(division.name, city, materialName, 'PROD', 'MP');
 			}
 		}
@@ -981,6 +982,10 @@ async function doPriceDiscovery(ns) {
 			} catch { }
 			let votes = [];
 			for (const city of division.cities) {
+				// sometimes in low valuation nodes might not have a warehouse yet
+				if(!c.hasWarehouse(division.name, city)){
+					continue;
+				}
 				// Each city is going to "vote" for how they want the price to be manipulated.
 				let qty = product.cityData[city][0];
 				let produced = product.cityData[city][1];

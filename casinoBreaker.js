@@ -7,6 +7,10 @@ export async function main(ns) {
     ns.goToLocation("Iker Molina Casino");
 
     await playRoulette(ns);
+    const alertSpan = find(`//span[text() = "${kickedOutAlert}"]`);
+    if (alertSpan) {
+        find('/html/body/div[4]/div[1]')?.click();
+    }
 }
 
 function arraysPercentEqual(a, b) {
@@ -85,6 +89,7 @@ async function playToWinRoulette(ns, whrng, inputWager, maxPlay) {
     // maxPlay = 0; //testing value
     let losses = 0;
     let plays = 0;
+    // while (true) {
     while (!find(`//span[text() = "${kickedOutAlert}"]`)) {
         // inputWager.value = Math.floor(Math.min(maxPlay, ns.getPlayer().money));
         await setText2(inputWager, `${Math.floor(Math.min(maxPlay, ns.getServerMoneyAvailable('home')))}`);

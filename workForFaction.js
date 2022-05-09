@@ -115,8 +115,11 @@ export async function main(ns) {
     crimeFocus = options['crime-focus'];
     if (crimeFocus && noFocus)
         return ns.tprint("ERROR: Cannot use --no-focus and --crime-focus at the same time. You need to focus to do crime!");
+    const bladeburnerDesiredStats = ['agi', 'dex', 'str', 'def', 'faction_rep', 'company_rep', 'hacknet'];
+    const oldCombatDesiredStats = ['str', 'def', 'dex', 'agi', 'faction_rep', 'hacking', 'hacknet'];
+    const hackingStats = ['hacking', 'faction_rep', 'company_rep', 'charisma', 'hacknet'];
     if (desiredAugStats.length === 0)
-        desiredAugStats.push(...(crimeFocus || gangFocus ? ['str', 'def', 'dex', 'agi', 'faction_rep', 'hacking', 'hacknet'] : ['hacking', 'faction_rep', 'company_rep', 'charisma', 'hacknet']))
+        desiredAugStats.push(...(crimeFocus || gangFocus ? bladeburnerDesiredStats : hackingStats))
     // Log command line args used
     if (firstFactions.length > 0) ns.print(`--first factions: ${firstFactions.join(", ")}`);
     if (skipFactionsConfig.length > 0) ns.print(`--skip factions: ${skipFactionsConfig.join(", ")}`);
@@ -190,6 +193,7 @@ export async function main(ns) {
             await earnFactionInvite(ns, "Aevum");
             await earnFactionInvite(ns, "Sector-12");
             await earnFactionInvite(ns, "Tian Di Hui");
+            await earnFactionInvite(ns, "Tetrads");
             await ns.sleep(30000);
             continue;
         }
@@ -546,7 +550,7 @@ export async function workForSingleFaction(ns, factionName, forceUnlockDonations
     if (startingFavor >= repToDonate) // If we have already got 150+ favor, we've unlocked donations - no need to grind for rep
         return ns.print(`Donations already unlocked for "${factionName}". You should buy access to augs. Skipping working for faction...`);
     // Cannot work for gang factions. Detect if this is our gang faction!
-    if (factionName === playerGang || allGangFactions.includes(factionName))
+    if (factionName === playerGang || factionName === 'Bladeburners')
         return ns.print(`"${factionName}" is an active gang faction. Cannot work for gang factions...`);
     if (forceUnlockDonations && mostExpensiveAugByFaction[factionName] < 0.2 * factionRepRequired) {// Special check to avoid pointless donation unlocking
         ns.print(`The last "${factionName}" aug is only ${mostExpensiveAugByFaction[factionName].toLocaleString()} rep, ` +
