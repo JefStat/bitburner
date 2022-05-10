@@ -88,11 +88,13 @@ const kickedOutAlert = 'Alright cheater get out of here. You\'re not allowed her
 async function playToWinRoulette(ns, whrng, inputWager, maxPlay) {
     // maxPlay = 0; //testing value
     let losses = 0;
-    let plays = 0;
+    let plays = 4;
     // while (true) {
     while (!find(`//span[text() = "${kickedOutAlert}"]`)) {
         // inputWager.value = Math.floor(Math.min(maxPlay, ns.getPlayer().money));
-        await setText2(inputWager, `${Math.floor(Math.min(maxPlay, ns.getServerMoneyAvailable('home')))}`);
+        const halfCash = ns.getServerMoneyAvailable('home') / 2 ;
+        if (halfCash < 1) throw new Error('Out of cash');
+        await setText2(inputWager, `${Math.floor(Math.min(maxPlay, halfCash))}`);
         const luckynumber = whrng.randomRouletteNumber();
         const button = find(`//button[text() = '${luckynumber}']`);
         // ns.print(`Clicking ${button.innerHTML}`);

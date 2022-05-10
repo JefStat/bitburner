@@ -4,7 +4,8 @@ import {
     getAllAugmentRepReq,
     getAllAugmentStats,
     getAugmentsPerFaction,
-    getOwnedAugmentationsStatic
+    getOwnedAugmentationsStatic,
+    hasBladesSimulacrum
 } from "augments.js";
 const companySpecificConfigs = [
     { name: "NWO", statModifier: 25 },
@@ -51,7 +52,6 @@ const preferredCompanyFactionOrder = [
 ]
 // Order in which to focus on crime factions
 const preferredCrimeFactionOrder = ["Netburners", "Slum Snakes", "NiteSec", "Tetrads", "The Black Hand", "The Syndicate", "The Dark Army", "Speakers for the Dead", "Daedalus"]
-const simulacrumAugName = "The Blade's Simulacrum"; // This augmentation lets you do bladeburner actions while busy
 const loopSleepInterval = 2000; // 2 seconds
 const statusUpdateInterval = 120000; // 2 minutes (outside of this, minor updates in e.g. stats aren't logged)
 const restartWorkInterval = 30000; // Collect e.g. rep earned by stopping and starting work;
@@ -67,7 +67,6 @@ let ownedAugmentations = [];
 let mostExpensiveAugByFaction = [];
 let mostExpensiveDesiredAugByFaction = [];
 let playerGang = null;
-let allGangFactions = [];
 
 let options;
 const argsSchema = [
@@ -115,6 +114,9 @@ export async function main(ns) {
     crimeFocus = options['crime-focus'];
     if (crimeFocus && noFocus)
         return ns.tprint("ERROR: Cannot use --no-focus and --crime-focus at the same time. You need to focus to do crime!");
+    // AGI increases stamina, more stamina faster stam recovery
+    // DEX decreases op time more dex faster ops, faster rank gain, require more stamina therefore need AGI first
+    // STR and DEF just increase chances afaik not important the multipliers are huge for these stats anyways
     const bladeburnerDesiredStats = ['agi', 'dex', 'str', 'def', 'faction_rep', 'company_rep', 'hacknet'];
     const oldCombatDesiredStats = ['str', 'def', 'dex', 'agi', 'faction_rep', 'hacking', 'hacknet'];
     const hackingStats = ['hacking', 'faction_rep', 'company_rep', 'charisma', 'hacknet'];
@@ -141,13 +143,13 @@ export async function main(ns) {
         let configGangIndex = preferredEarlyFactionOrder.findIndex(f => f === "Slum Snakes");
         if (configGangIndex !== -1) // If we're in a gang, don't need to earn an invite to slum snakes anymore
             preferredEarlyFactionOrder.splice(configGangIndex, 1);
-        allGangFactions = ["Slum Snakes", "Tetrads", "The Black Hand", "The Syndicate", "The Dark Army", "Speakers for the Dead", "NiteSec"];
     }
     mostExpensiveAugByFaction = Object.fromEntries(factionList.map(f => [f, dictFactionAugs[f]
         .filter(aug => !ownedAugmentations.includes(aug))
         .reduce((max, aug) => Math.max(max, dictAugRepReqs[aug]), -1)]));
     ns.print("Most expensive unowned aug by faction: " + JSON.stringify(mostExpensiveAugByFaction, null, 2));
     // TODO: Detect when the most expensive aug from two factions is the same - only need it from the first one. (Update lists and remove 'afforded' augs?)
+    // TODO this filter might not be working as intended
     mostExpensiveDesiredAugByFaction = Object.fromEntries(
         factionList.map(f => [f, dictFactionAugs[f].filter(aug => !ownedAugmentations.includes(aug) && (Object.keys(dictAugStats[aug]).length === 0 || !desiredAugStats ||
             Object.keys(dictAugStats[aug]).some(key => desiredAugStats.some(stat => key.includes(stat)))))
@@ -187,13 +189,17 @@ export async function main(ns) {
                 await ns.sleep(crimeStats.time + 100);
             }
         }
-        if (!ownedAugmentations.includes(simulacrumAugName) && ns.bladeburner.getCurrentAction().type !== 'idle') {
+        if (!hasBladesSimulacrum(ns) && ns.bladeburner.getCurrentAction().type !== 'idle') {
             ns.print(`Waiting on bladeburner ${ns.bladeburner.getCurrentAction().type} `);
             scope--;
+            // Join some faction that are achieved passively
+            let deficientStats = [{ name: "str", value: player.strength }, { name: "str", value: player.defense }, { name: "str", value: player.dexterity }, { name: "str", value: player.agility }];
             await earnFactionInvite(ns, "Aevum");
             await earnFactionInvite(ns, "Sector-12");
-            await earnFactionInvite(ns, "Tian Di Hui");
-            await earnFactionInvite(ns, "Tetrads");
+            if (player.hacking > requiredHackByFaction["Tian Di Hui"]) await earnFactionInvite(ns, "Tian Di Hui");
+            if (deficientStats.filter(stat => stat.value < requiredCombatByFaction["Tetrads"]).length === 0) {
+                await earnFactionInvite(ns, "Tetrads");
+            }
             await ns.sleep(30000);
             continue;
         }
@@ -397,7 +403,7 @@ async function earnFactionInvite(ns, factionName) {
         }
         // Change the company to work for into whichever company we can get to CEO fastest with. Minimize needed_rep/rep_gain_rate. CEO job is at 3.2e6 rep, so (3.2e6-current_rep)/(100+favor).
         factionConfig.companyName = companyNames.sort((a, b) => (3.2e6 - ns.getCompanyRep(a)) / (100 + favorByCompany[a]) - (3.2e6 - ns.getCompanyRep(b)) / (100 + favorByCompany[b]))[0];
-        while (!ns.joinFaction('${factionName}')) { await ns.asleep(1000); }
+        while (!ns.joinFaction(`${factionName}`)) { await ns.asleep(1000); }
         workedForInvite = await workForMegacorpFactionInvite(ns, factionName, false); // Work until CTO and the external script joins this faction, triggering an exit condition.
     }
 

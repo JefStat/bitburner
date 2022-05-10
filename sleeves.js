@@ -1,14 +1,14 @@
 import { findBox, boxTailSingleton, sleevesPortNumber, tryGetBitNodeMultipliers } from "./utils";
 import { createSidebarItem, elemFromHTML, sidebar } from "/box/box.js"
-import { getAugsRemainingAtFaction, factionsWork } from "./augments";
+import { getAugsRemainingAtFaction, factionsWork, getAllAugmentStats, hasStat, hasBladesSimulacrum } from "./augments";
 
 const interval = 5000; // Update (tick) this often
 const minTaskWorkTime = 29000; // Sleeves assigned a new task should stick to it for at least this many milliseconds
 let workByFaction; // Cache of crime statistics and which factions support which work
-let task, lastPurchaseTime, lastPurchaseStatusUpdate, availableAugs, cacheExpiry, lastReassignTime; // State by sleeve
+let task, lastPurchaseTime, availableAugs, lastReassignTime; // State by sleeve
 //todo convert the status to some nice html for the box.js
 let sleeveStatuses = [];
-let playerInfo, numSleeves;
+let playerInfo, numSleeves, augmentStats;
 let options;
 
 const argsSchema = [
@@ -24,7 +24,7 @@ export function autocomplete(data, _) {
     data.flags(argsSchema);
     return [];
 }
-
+const bladeburnerDesiredStats = ['agi', 'dex', 'str', 'def', 'faction_rep', 'company_rep', 'hacknet'];
 /** @param {NS} ns **/
 export async function main(ns) {
     options = ns.flags(argsSchema);
@@ -41,12 +41,11 @@ export async function main(ns) {
     // Ensure the global state is reset (e.g. after entering a new bitnode)
     task = [];
     lastPurchaseTime = [];
-    lastPurchaseStatusUpdate = [];
     availableAugs = [];
-    cacheExpiry = [];
     lastReassignTime = [];
     sleeveStatuses = [];
     workByFaction = {};
+    augmentStats = getAllAugmentStats(ns);
     // Start the main loop
     while (true) {
         try { await mainLoop(ns); }
@@ -90,6 +89,7 @@ async function mainLoop(ns) {
     }
     for (let i = 0; i < numSleeves; i++) {
         let sleeve = { ...sleeveStats[i], ...sleeveInfo[i] }; // For convenience, merge all sleeve stats/info into one object
+        playerInfo = ns.getPlayer();
         // MANAGE SLEEVE AUGMENTATIONS
         if (sleeve.shock === 0) // No augs are available augs until shock is 0
             budget -= await manageSleeveAugs(ns, i, budget);
@@ -116,7 +116,7 @@ async function mainLoop(ns) {
 
     ns.clearLog();
     for (let i = 0; i < sleeveStatuses.length; i++) {
-        ns.print(`[${i%numSleeves}] ${sleeveStatuses[i]}`);
+        ns.print(`[${i % numSleeves}] ${sleeveStatuses[i]}`);
     }
 }
 const excludedAugs = ['QLink', 'Hydroflame Left Arm'];
@@ -124,20 +124,20 @@ const excludedAugs = ['QLink', 'Hydroflame Left Arm'];
 /** @param {NS} ns
  * @param i
  * @param budget
- * Purchases augmentations for sleeves */
+ * Purchases augmentations for sleeves after corp and blade simulcrum owned */
 async function manageSleeveAugs(ns, i, budget) {
-    // Retrieve and cache the set of available sleeve augs (cached temporarily, but not forever, in case rules around this change)
-    if (availableAugs[i] == null || Date.now() > cacheExpiry[i]) {
-        cacheExpiry[i] = Date.now() + 60000;
-        availableAugs[i] = ns.sleeve.getSleevePurchasableAugs(i).filter(a => !excludedAugs.includes(a.name)).sort((a, b) => a.cost - b.cost);
+    if (!hasBladesSimulacrum(ns) || !playerInfo.hasCorporation) {
+        return 0;
     }
-    if (availableAugs[i].length === 0) return 0;
-
+    availableAugs[i] = ns.sleeve.getSleevePurchasableAugs(i).filter(a => !excludedAugs.includes(a.name)).sort((a, b) => a.cost - b.cost);
+    // filter augs base on desired stats;
+    availableAugs[i] = availableAugs[i].filter(a => bladeburnerDesiredStats.find((stat) => hasStat(stat, augmentStats[a.name])));
     const cooldownLeft = Math.max(0, options['buy-cooldown'] - (Date.now() - (lastPurchaseTime[i] || 0)));
     const [batchCount, batchCost] = availableAugs[i].reduce(([n, c], aug) => c + aug.cost <= budget ? [n + 1, c + aug.cost] : [n, c], [0, 0]);
-    const purchaseUpdate = `Purchase ${batchCount.toFixed(0).padStart(2)}/${availableAugs[i].length.toFixed(0).padEnd(2)} augs ` +
-        `${ns.nFormat(batchCost, '$0.0a')} of ${ns.nFormat(availableAugs[i].reduce((t, aug) => t + aug.cost, 0), '$0.0a')}`;
+    const purchaseUpdate = `P Plan ${batchCount.toFixed(0).padStart(2)}/${availableAugs[i].length.toFixed(0).padEnd(2)} augs ` +
+        `${ns.nFormat(batchCost, '$0.0a')} of ${ns.nFormat(availableAugs[i].reduce((t, aug) => t + aug.cost, 0), '$0.0a')} in ${ns.tFormat(cooldownLeft)}`;
     sleeveStatuses[numSleeves + i] = purchaseUpdate;
+    if (availableAugs[i].length === 0) return 0;
     if (cooldownLeft === 0 && batchCount > 0 && ((batchCount >= availableAugs[i].length - 1) || batchCount >= options['min-aug-batch'])) { // Don't require the last aug it's so much more expensive
         let strAction = `Purchase ${batchCount} augmentations for sleeve ${i} at total cost of ${ns.nFormat(batchCost, '0.0.a')}`;
         let toPurchase = availableAugs[i].splice(0, batchCount);

@@ -63,7 +63,7 @@ export async function main(pns) {
 
     getMembersStats();
     getTasksStats();
-    equip();
+    await equip();
     ascend();
     war();
     let [makeWar, makeWarMsg] = isWartime();
@@ -144,7 +144,7 @@ function war() {
   ns.gang.setTerritoryWarfare(enableWar);
 }
 
-function equip() {
+async function equip() {
   const nameStatsMap = {};
   let equipmentNames = ns.gang.getEquipmentNames();
   for (const equipName of equipmentNames) {
@@ -166,12 +166,13 @@ function equip() {
           ns.toast(`Purchased ${equipName} for ${member.name}`, 'success', 10000);
         }
         // restrict soft reset loop to do so only for the augs
-      } else if (combatAugmentPriorityOrder.includes(equipName)) {
+        // } else if (combatAugmentPriorityOrder.includes(equipName)) {
+      } else if (!augsAndUpgrades.includes(equipName)) {
         if (ns.getServerMoneyAvailable('home') < ns.gang.getEquipmentCost(equipName) && ns.gang.getEquipmentCost(equipName) < 10e9) {
           ns.print(`Resetting to buy ${equipName} for ${member.name}`);
-          ns.softReset('bootstrap32GB.js');
+          ns.exec('aug_buyer.js', 'home');
+          await ns.sleep(10000);
         }
-
       }
     }
   }
