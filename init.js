@@ -33,13 +33,15 @@ export async function main(pns) {
 	await writeSleeveData();
 
 	await writeServers('', 'home');
-	ns.exec('hacknet.js', 'home');
+	ns.exec('hacknet.js', 'home', 1, '--max-spend', 200e6);
 	ns.exec('spend-hacknet-hash.js', 'home');
+	ns.exec('spend-hacknet-hash.js', 'home', 1, '--no-capacity-upgrades', '--spend-on', 'Exchange_for_Bladeburner_SP');
+	ns.exec('spend-hacknet-hash.js', 'home', 1, '--no-capacity-upgrades', '--spend-on', 'Exchange_for_Bladeburner_Rank');
 	ns.exec('player.js', 'home');
 	ns.exec('sleeves.js', 'home');
 	ns.exec('bladeburner.js', 'home');
 	ns.exec('megacorp.js', 'home');
-	ns.exec('workForFaction.js', 'home', 1, !ns.gang.inGang() ? `--gang-focus` : '--no-crime');
+	ns.exec('workForFaction.js', 'home', 1, !ns.gang.inGang() ? `--gang-focus` : '--crime-focus');
 	if (ns.gang.inGang()) ns.exec('gangum.js', 'home');
 	ns.exec('purchase-servers.js', 'home');
 	ns.exec('ensureRoot.js', 'home');

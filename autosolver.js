@@ -2,7 +2,7 @@ import { list_servers } from "opened_servers.js";
 import { boxTailSingleton } from 'utils.js';
 /** @param {NS} ns **/
 export function main(ns) {
-    boxTailSingleton(ns, 'autosolver', '🔎', '200px');
+    boxTailSingleton(ns, 'autosolver', '🔎', '80px');
     const contracts = list_servers(ns).map((server) => {
         const onServer = ns.ls(server, ".cct").map((contract) => {
             const type = ns.codingcontract.getContractType(contract, server);

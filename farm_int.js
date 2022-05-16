@@ -1,6 +1,6 @@
 const argsSchema = [
-    ['trips-per-cycle', 1000],
-    ['money-threshold', 1_000_000_000_000]
+    ['trips-per-cycle', 10000],
+    ['money-threshold', 1_000_000_000]
 ];
 
 export function autocomplete(data, args) {
@@ -17,6 +17,7 @@ export function autocomplete(data, args) {
  * Concept: A small amount of intelligence is granted when you (successfully) travel to a new city. This script converts money into intelligence exp! **/
 export async function main(ns) {
     ns.disableLog("travelToCity");
+    ns.disableLog('singularity.travelToCity');
     ns.disableLog("sleep");
     ns.tail();
     let options = ns.flags(argsSchema);

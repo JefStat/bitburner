@@ -116,7 +116,7 @@ async function mainLoop(ns) {
 
     ns.clearLog();
     for (let i = 0; i < sleeveStatuses.length; i++) {
-        ns.print(`[${i % numSleeves}] ${sleeveStatuses[i]}`);
+        ns.print(`${i % numSleeves}- ${sleeveStatuses[i]}`);
     }
 }
 const excludedAugs = ['QLink', 'Hydroflame Left Arm'];
@@ -131,10 +131,10 @@ async function manageSleeveAugs(ns, i, budget) {
     }
     availableAugs[i] = ns.sleeve.getSleevePurchasableAugs(i).filter(a => !excludedAugs.includes(a.name)).sort((a, b) => a.cost - b.cost);
     // filter augs base on desired stats;
-    availableAugs[i] = availableAugs[i].filter(a => bladeburnerDesiredStats.find((stat) => hasStat(stat, augmentStats[a.name])));
+    availableAugs[i] = availableAugs[i].filter(a => i === 0 ? true : bladeburnerDesiredStats.find((stat) => hasStat(stat, augmentStats[a.name])));
     const cooldownLeft = Math.max(0, options['buy-cooldown'] - (Date.now() - (lastPurchaseTime[i] || 0)));
     const [batchCount, batchCost] = availableAugs[i].reduce(([n, c], aug) => c + aug.cost <= budget ? [n + 1, c + aug.cost] : [n, c], [0, 0]);
-    const purchaseUpdate = `P Plan ${batchCount.toFixed(0).padStart(2)}/${availableAugs[i].length.toFixed(0).padEnd(2)} augs ` +
+    const purchaseUpdate = `${batchCount.toFixed(0).padStart(2)}/${availableAugs[i].length.toFixed(0).padEnd(2)} augs ` +
         `${ns.nFormat(batchCost, '$0.0a')} of ${ns.nFormat(availableAugs[i].reduce((t, aug) => t + aug.cost, 0), '$0.0a')} in ${ns.tFormat(cooldownLeft)}`;
     sleeveStatuses[numSleeves + i] = purchaseUpdate;
     if (availableAugs[i].length === 0) return 0;

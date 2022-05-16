@@ -1,4 +1,4 @@
-import { boxTailSingleton} from "utils.js"
+import { boxTailSingleton } from "utils.js"
 
 const sellForMoney = 'Sell for Money';
 
@@ -7,6 +7,7 @@ const argsSchema = [
     ['interval', 1000], // Rate at which the program runs and spends hashes
     ['spend-on', [sellForMoney]],
     ['spend-on-server', undefined],
+    ['no-capacity-upgrades', false], // By default, we will attempt to upgrade the hacknet node capacity if we cannot afford any purchases. Set to true to disable this.
     ['reserve-buffer', 1], // To avoid wasting hashes, spend if would be within this many hashes of our max capacity on the next tick.
 ];
 
@@ -35,10 +36,10 @@ export async function main(ns) {
     const spendOnServer = options['spend-on-server']?.replaceAll("_", " ") ?? undefined;
     // Validate arguments
     if (toBuy.length === 0)
-        return ns.print("ERROR: You must specify at least one thing to spend hashes on via the --spend-on argument.", true, 'error');
+        return ns.print("ERROR: You must specify at least one thing to spend hashes on via the --spend-on argument.");
     const unrecognized = toBuy.filter(p => !purchaseOptions.includes(p));
     if (unrecognized.length > 0)
-        return ns.print(`ERROR: One or more --spend-on arguments are not recognized: ${unrecognized.join(", ")}`, true, 'error');
+        return ns.print(`ERROR: One or more --spend-on arguments are not recognized: ${unrecognized.join(", ")}`);
     ns.disableLog('sleep');
     const pinned = `Spending on '${toBuy}'. Will check in every ${ns.tFormat(interval)}. Reserving ${options['reserve-buffer']}`
     boxTailSingleton(ns, 'hacknet-spend', '🖳', '100px', `<div>${pinned}</div>`);
@@ -77,7 +78,7 @@ export async function main(ns) {
                                 `Have: ${ns.hacknet.numHashes()} Capacity: ${capacity}`);
                         else if (spendAction !== sellForMoney) // This would be to noisy late-game, since cost never scales
                             ns.print(`SUCCESS: Spent ${cost} hashes on '${spendAction}'. ` +
-                                `Next upgrade will cost ${ns.hacknet.hashCost(spendAction)}.`, false, 'success');
+                                `Next upgrade will cost ${ns.hacknet.hashCost(spendAction)}.`);
                     }
                     await ns.sleep(1); // Defend against infinite loop if there's a bug
                 }
@@ -97,28 +98,32 @@ export async function main(ns) {
                     `costs ${getMinCost(toBuy)} hashes. A capacity upgrade is needed before anything else is purchase.`);
             else // Current hash capacity suffices
                 continue;
-            // Try to upgrade hacknet capacity so we can save up for more upgrades
-            let lowestLevel = Number.MAX_SAFE_INTEGER, lowestIndex = null;
-            for (let i = 0; i < nodes; i++)
-                if (ns.hacknet.getNodeStats(i).hashCapacity < lowestLevel) {
-                    lowestIndex = i;
-                    lowestLevel = ns.hacknet.getNodeStats(i).hashCapacity;
-                }
-            if (lowestIndex !== null && ns.hacknet.upgradeCache(lowestIndex, 1)) {
-                ns.print(`SUCCESS: Upgraded hacknet node ${lowestIndex} hash capacity in order to afford further purchases. ` +
-                    `(You can disable this with --no-capacity-upgrades)`, false, 'success');
-                capacity = ns.hacknet.hashCapacity()
-            } else if (nodes > 0)
-                ns.print(`WARNING: We cannot afford to buy any of the desired upgrades (${toBuy.join(", ")}) at our current hash capacity, ` +
-                    `and we failed to increase our hash capacity (cost: ${ns.nFormat(ns.hacknet.getCacheUpgradeCost(lowestIndex, 1), '0.0a')}).`, false, 'warning');
-
+            if (options['no-capacity-upgrades']) // Not allowed to upgrade hacknet capacity
+                ns.print(`WARNING: spend-hacknet-hashes.js cannot afford any of the desired upgrades (${toBuy.join(", ")}) at the current hash capacity, ` +
+                    `and --no-capacity-upgrades is set, so we cannot increase our hash capacity.`);
+            else {
+                // Try to upgrade hacknet capacity so we can save up for more upgrades
+                let lowestLevel = Number.MAX_SAFE_INTEGER, lowestIndex = null;
+                for (let i = 0; i < nodes; i++)
+                    if (ns.hacknet.getNodeStats(i).hashCapacity < lowestLevel) {
+                        lowestIndex = i;
+                        lowestLevel = ns.hacknet.getNodeStats(i).hashCapacity;
+                    }
+                if (lowestIndex !== null && ns.hacknet.upgradeCache(lowestIndex, 1)) {
+                    ns.print(`SUCCESS: Upgraded hacknet node ${lowestIndex} hash capacity in order to afford further purchases. ` +
+                        `(You can disable this with --no-capacity-upgrades)`);
+                    capacity = ns.hacknet.hashCapacity()
+                } else if (nodes > 0)
+                    ns.print(`WARNING: We cannot afford to buy any of the desired upgrades (${toBuy.join(", ")}) at our current hash capacity, ` +
+                        `and we failed to increase our hash capacity (cost: ${ns.nFormat(ns.hacknet.getCacheUpgradeCost(lowestIndex, 1), '0.0a')}).`);
+            }
             // If for any of the above reasons, we weren't able to upgrade capacity, calling 'SpendHashes' once more
             // with these arguments will only convert enough hashes to money to ensure they aren't wasted before the next tick.
             await fnSpendHashes([sellForMoney], false);
         }
         catch (err) {
             ns.print(`WARNING: spend-hacknet-hashes.js Caught (and suppressed) an unexpected error in the main loop:\n` +
-                (typeof err === 'string' ? err : err.message || JSON.stringify(err)), false, 'warning');
+                (typeof err === 'string' ? err : err.message || JSON.stringify(err)));
         }
     }
 }

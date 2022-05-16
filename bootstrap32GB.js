@@ -19,11 +19,14 @@ export async function main(ns) {
         const player = ns.getPlayer();
 
         //need a min of 1030 for corporation apis
-        if (ns.getServerMaxRam('home') <= 1024 && player.money > ns.getUpgradeHomeRamCost()) {
+        //bitnode 9 2tb of home ram > $10b
+        //const ramWanted = 1024;
+        const ramWanted = 2048;
+        if (ns.getServerMaxRam('home') < ramWanted && player.money > ns.getUpgradeHomeRamCost()) {
             ns.upgradeHomeRam();
         }
 
-        if (casinoBreakerPid === -1 && ns.getServerMaxRam('home') > 1024) {
+        if (casinoBreakerPid === -1 && ns.getServerMaxRam('home') >= ramWanted) {
             //All done time to init
             ns.exec('init.js', 'home');
             return;
